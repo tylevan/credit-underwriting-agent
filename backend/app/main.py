@@ -44,9 +44,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── CORS: cho phép frontend gọi API cross-origin ──
+origins = [
+    settings.FRONTEND_URL,                          # Cloud Run env: Cloudflare Pages URL
+    "https://credit-underwriting-agent.pages.dev",   # Cloudflare Pages production
+    "http://localhost:5173",                         # Vite default
+    "http://localhost:5000",                         # Vite custom port
+    "http://localhost:3000",                         # Fallback
+]
+# Lọc bỏ chuỗi rỗng
+origins = [o for o in origins if o]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
