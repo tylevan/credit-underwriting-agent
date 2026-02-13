@@ -222,48 +222,52 @@ async def get_stats(date_from: date = None, date_to: date = None) -> dict:
 
 
 async def _get_stats_pg(date_from, date_to):
-    pool = await _get_pg_pool()
-    async with pool.acquire() as conn:
-        where = "1=1"
-        params = []
-        idx = 1
+    try:
+        pool = await _get_pg_pool()
+        async with pool.acquire() as conn:
+            where = "1=1"
+            params = []
+            idx = 1
 
-        if date_from:
-            where += f" AND DATE(created_at) >= ${idx}"
-            params.append(date_from.isoformat())
-            idx += 1
-        if date_to:
-            where += f" AND DATE(created_at) <= ${idx}"
-            params.append(date_to.isoformat())
-            idx += 1
+            if date_from:
+                where += f" AND created_at::date >= ${idx}"
+                params.append(date_from)  # pass date object directly
+                idx += 1
+            if date_to:
+                where += f" AND created_at::date <= ${idx}"
+                params.append(date_to)  # pass date object directly
+                idx += 1
 
-        row = await conn.fetchrow(
-            f"""
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN decision = 'APPROVED' THEN 1 ELSE 0 END) as approved,
-                SUM(CASE WHEN decision = 'REJECTED' THEN 1 ELSE 0 END) as rejected,
-                SUM(CASE WHEN decision = 'REVIEW' THEN 1 ELSE 0 END) as review
-            FROM assessments
-            WHERE {where}
-            """,
-            *params,
-        )
+            row = await conn.fetchrow(
+                f"""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN decision = 'APPROVED' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN decision = 'REJECTED' THEN 1 ELSE 0 END) as rejected,
+                    SUM(CASE WHEN decision = 'REVIEW' THEN 1 ELSE 0 END) as review
+                FROM assessments
+                WHERE {where}
+                """,
+                *params,
+            )
 
-        total = row["total"] or 0
-        approved = row["approved"] or 0
-        rejected = row["rejected"] or 0
-        review = row["review"] or 0
+            total = row["total"] or 0
+            approved = row["approved"] or 0
+            rejected = row["rejected"] or 0
+            review = row["review"] or 0
 
-        return {
-            "total": total,
-            "approved": approved,
-            "rejected": rejected,
-            "review": review,
-            "approved_pct": round(approved / total * 100, 1) if total > 0 else 0,
-            "rejected_pct": round(rejected / total * 100, 1) if total > 0 else 0,
-            "review_pct": round(review / total * 100, 1) if total > 0 else 0,
-        }
+            return {
+                "total": total,
+                "approved": approved,
+                "rejected": rejected,
+                "review": review,
+                "approved_pct": round(approved / total * 100, 1) if total > 0 else 0,
+                "rejected_pct": round(rejected / total * 100, 1) if total > 0 else 0,
+                "review_pct": round(review / total * 100, 1) if total > 0 else 0,
+            }
+    except Exception as e:
+        logger.error(f"_get_stats_pg error: {e}")
+        raise
 
 
 async def _get_stats_sqlite(date_from, date_to):
@@ -335,74 +339,78 @@ async def list_assessments(
 
 
 async def _list_pg(date_from, date_to, decision, search, page, page_size):
-    pool = await _get_pg_pool()
-    async with pool.acquire() as conn:
-        where = "1=1"
-        params = []
-        idx = 1
+    try:
+        pool = await _get_pg_pool()
+        async with pool.acquire() as conn:
+            where = "1=1"
+            params = []
+            idx = 1
 
-        if date_from:
-            where += f" AND DATE(created_at) >= ${idx}"
-            params.append(date_from.isoformat())
-            idx += 1
-        if date_to:
-            where += f" AND DATE(created_at) <= ${idx}"
-            params.append(date_to.isoformat())
-            idx += 1
-        if decision:
-            where += f" AND decision = ${idx}"
-            params.append(decision)
-            idx += 1
-        if search:
-            where += f" AND (customer_name ILIKE ${idx} OR customer_id ILIKE ${idx+1})"
-            params.extend([f"%{search}%", f"%{search}%"])
-            idx += 2
+            if date_from:
+                where += f" AND created_at::date >= ${idx}"
+                params.append(date_from)  # pass date object directly
+                idx += 1
+            if date_to:
+                where += f" AND created_at::date <= ${idx}"
+                params.append(date_to)  # pass date object directly
+                idx += 1
+            if decision:
+                where += f" AND decision = ${idx}"
+                params.append(decision)
+                idx += 1
+            if search:
+                where += f" AND (customer_name ILIKE ${idx} OR customer_id ILIKE ${idx+1})"
+                params.extend([f"%{search}%", f"%{search}%"])
+                idx += 2
 
-        # Count
-        row = await conn.fetchrow(
-            f"SELECT COUNT(*) as cnt FROM assessments WHERE {where}", *params
-        )
-        total = row["cnt"]
+            # Count
+            row = await conn.fetchrow(
+                f"SELECT COUNT(*) as cnt FROM assessments WHERE {where}", *params
+            )
+            total = row["cnt"]
 
-        # Items
-        offset = (page - 1) * page_size
-        rows = await conn.fetch(
-            f"""
-            SELECT id, thread_id, customer_id, customer_name, loan_amount,
-                   term_months, decision, cic_score, dti, approved_limit,
-                   reasoning_trail, needs_human_review, created_at
-            FROM assessments
-            WHERE {where}
-            ORDER BY created_at DESC
-            LIMIT ${idx} OFFSET ${idx+1}
-            """,
-            *params, page_size, offset,
-        )
+            # Items
+            offset = (page - 1) * page_size
+            rows = await conn.fetch(
+                f"""
+                SELECT id, thread_id, customer_id, customer_name, loan_amount,
+                       term_months, decision, cic_score, dti, approved_limit,
+                       reasoning_trail, needs_human_review, created_at
+                FROM assessments
+                WHERE {where}
+                ORDER BY created_at DESC
+                LIMIT ${idx} OFFSET ${idx+1}
+                """,
+                *params, page_size, offset,
+            )
 
-        items = []
-        for r in rows:
-            items.append({
-                "id": r["id"],
-                "thread_id": r["thread_id"],
-                "customer_id": r["customer_id"],
-                "customer_name": r["customer_name"],
-                "loan_amount": r["loan_amount"],
-                "term_months": r["term_months"],
-                "decision": r["decision"],
-                "cic_score": r["cic_score"],
-                "dti": r["dti"],
-                "approved_limit": r["approved_limit"],
-                "reasoning_trail": json.loads(r["reasoning_trail"] or "[]"),
-                "needs_human_review": bool(r["needs_human_review"]),
-                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            })
+            items = []
+            for r in rows:
+                items.append({
+                    "id": r["id"],
+                    "thread_id": r["thread_id"],
+                    "customer_id": r["customer_id"],
+                    "customer_name": r["customer_name"],
+                    "loan_amount": r["loan_amount"],
+                    "term_months": r["term_months"],
+                    "decision": r["decision"],
+                    "cic_score": r["cic_score"],
+                    "dti": r["dti"],
+                    "approved_limit": r["approved_limit"],
+                    "reasoning_trail": json.loads(r["reasoning_trail"] or "[]"),
+                    "needs_human_review": bool(r["needs_human_review"]),
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                })
 
-        return {
-            "items": items,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-        }
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            }
+    except Exception as e:
+        logger.error(f"_list_pg error: {e}")
+        raise
 
 
 async def _list_sqlite(date_from, date_to, decision, search, page, page_size):
