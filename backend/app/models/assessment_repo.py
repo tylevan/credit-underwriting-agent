@@ -127,35 +127,51 @@ async def save_assessment(data: dict) -> int:
         ID của record mới tạo
     """
     reasoning_json = json.dumps(data.get("reasoning_trail", []), ensure_ascii=False)
-    created_at = data.get("created_at", datetime.now().isoformat())
+    created_at_raw = data.get("created_at", datetime.now().isoformat())
 
     if _USE_POSTGRES:
-        pool = await _get_pg_pool()
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                INSERT INTO assessments
-                    (thread_id, customer_id, customer_name, loan_amount, term_months,
-                     decision, cic_score, dti, approved_limit,
-                     reasoning_trail, report, needs_human_review, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                RETURNING id
-                """,
-                data.get("thread_id", ""),
-                data.get("customer_id", ""),
-                data.get("customer_name", ""),
-                data.get("loan_amount", 0),
-                data.get("term_months", 0),
-                data.get("decision"),
-                data.get("cic_score"),
-                data.get("dti"),
-                data.get("approved_limit"),
-                reasoning_json,
-                data.get("report", ""),
-                1 if data.get("needs_human_review") else 0,
-                created_at,
-            )
-            return row["id"]
+        # asyncpg cần datetime object, không nhận string
+        if isinstance(created_at_raw, str):
+            try:
+                created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                created_at = datetime.now()
+        elif isinstance(created_at_raw, datetime):
+            created_at = created_at_raw
+        else:
+            created_at = datetime.now()
+
+        try:
+            pool = await _get_pg_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO assessments
+                        (thread_id, customer_id, customer_name, loan_amount, term_months,
+                         decision, cic_score, dti, approved_limit,
+                         reasoning_trail, report, needs_human_review, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    RETURNING id
+                    """,
+                    str(data.get("thread_id", "")),
+                    str(data.get("customer_id", "")),
+                    str(data.get("customer_name", "")),
+                    float(data.get("loan_amount", 0)),
+                    int(data.get("term_months", 0)),
+                    data.get("decision"),
+                    int(data.get("cic_score", 0)) if data.get("cic_score") is not None else None,
+                    float(data.get("dti", 0)) if data.get("dti") is not None else None,
+                    float(data.get("approved_limit", 0)) if data.get("approved_limit") is not None else None,
+                    reasoning_json,
+                    str(data.get("report", "")),
+                    1 if data.get("needs_human_review") else 0,
+                    created_at,
+                )
+                logger.info(f"Assessment saved to PostgreSQL, id={row['id']}")
+                return row["id"]
+        except Exception as e:
+            logger.error(f"Failed to save assessment to PostgreSQL: {e}")
+            raise
     else:
         import aiosqlite
         async with aiosqlite.connect(_DB_PATH) as db:
