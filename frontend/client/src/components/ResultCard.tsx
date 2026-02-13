@@ -59,6 +59,26 @@ function StatusIcon({ status }: { status: string }) {
   return <AlertCircle className="w-6 h-6" />;
 }
 
+/** Map recommendation keywords → icons */
+function getRecommendationIcon(text: string): React.ReactNode {
+  const lower = text.toLowerCase();
+  if (lower.includes("tuổi") || lower.includes("độ tuổi")) return <UserCheck className="w-4 h-4" />;
+  if (lower.includes("cic") || lower.includes("tín dụng")) return <ShieldCheck className="w-4 h-4" />;
+  if (lower.includes("lãi suất")) return <TrendingUp className="w-4 h-4" />;
+  if (lower.includes("dti") || lower.includes("trả nợ") || lower.includes("khả năng")) return <BarChart3 className="w-4 h-4" />;
+  if (lower.includes("hạn mức") || lower.includes("khoản vay")) return <Banknote className="w-4 h-4" />;
+  if (lower.includes("nợ xấu") || lower.includes("nợ")) return <AlertTriangle className="w-4 h-4" />;
+  return <Lightbulb className="w-4 h-4" />;
+}
+
+/** Parse recommendation text into structured items */
+function parseRecommendation(text: string): string[] {
+  return text
+    .split(/\n/)
+    .map(line => line.replace(/^[•\-\*]\s*/, "").trim())
+    .filter(line => line.length > 0);
+}
+
 function InfoRow({
   icon,
   label,
@@ -468,9 +488,24 @@ export function ResultCard({ data }: ResultCardProps) {
               <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <Lightbulb className="w-3.5 h-3.5" /> Đề xuất
               </h4>
-              <p className="text-sm leading-relaxed p-4 rounded-xl border bg-blue-50 border-blue-200 text-slate-700">
-                {data.recommendation}
-              </p>
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden">
+                {parseRecommendation(data.recommendation).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-blue-100/50",
+                      idx > 0 && "border-t border-blue-100"
+                    )}
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-white border border-blue-200 flex items-center justify-center flex-shrink-0 mt-0.5 text-blue-600 shadow-sm">
+                      {getRecommendationIcon(item)}
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-slate-700 font-medium">
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

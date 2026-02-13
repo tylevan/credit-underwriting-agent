@@ -138,3 +138,22 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* ── Assessment Progress Stepper Animations ── */
+@keyframes assessment-step-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+@keyframes assessment-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+.assessment-step-pulse {
+  animation: assessment-step-pulse 1.5s ease-in-out infinite;
+}
+
+.assessment-dot-bounce {
+  animation: assessment-dot-bounce 1.2s ease-in-out infinite;
+}

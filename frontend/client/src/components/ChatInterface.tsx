@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Bot, User as UserIcon } from "lucide-react";
 import { ResultCard, AssessmentResult } from "./ResultCard";
+import { AssessmentProgress } from "./AssessmentProgress";
 import { format } from "date-fns";
 
 export interface Message {
@@ -12,6 +13,7 @@ export interface Message {
   role: "system" | "user";
   content?: string;
   cardData?: AssessmentResult;
+  isProgress?: boolean;
   timestamp: Date;
 }
 
@@ -112,6 +114,12 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                 {msg.cardData && (
                   <div className="mt-4 transition-all hover:scale-[1.01] duration-300">
                     <ResultCard data={msg.cardData} />
+                  </div>
+                )}
+
+                {msg.isProgress && (
+                  <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <AssessmentProgress active={true} />
                   </div>
                 )}
 

@@ -214,7 +214,8 @@ export default function Home() {
     const loadingMsg: Message = {
       id: "loading",
       role: "system",
-      content: `⏳ Hệ thống đang kiểm tra thông tin khách hàng CCCD số ${data.id}, CIC, DTI và hạn mức vay...`,
+      content: `Đang thẩm định hồ sơ CCCD ${data.id}...`,
+      isProgress: true,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, loadingMsg]);
