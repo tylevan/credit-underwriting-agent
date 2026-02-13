@@ -163,10 +163,10 @@ export default function Dashboard() {
             params.set("page_size", "10");
 
             const [statsRes, assessmentsRes] = await Promise.all([
-                fetch(`${API_BASE}/api/v1/dashboard/stats?${new URLSearchParams(
+                fetch(`${API_BASE}/dashboard/stats?${new URLSearchParams(
                     dateRange.from ? { from: dateRange.from, to: dateRange.to } : {}
                 )}`),
-                fetch(`${API_BASE}/api/v1/dashboard/assessments?${params}`),
+                fetch(`${API_BASE}/dashboard/assessments?${params}`),
             ]);
 
             const statsData = await statsRes.json();
