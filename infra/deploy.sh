@@ -162,12 +162,13 @@ gcloud run deploy ${BACKEND_SERVICE} \
     --platform managed \
     --allow-unauthenticated \
     --port 8000 \
-    --memory 512Mi \
+    --memory 1Gi \
     --cpu 1 \
     --timeout 120 \
     --min-instances 0 \
     --max-instances 2 \
     --concurrency 80 \
+    --cpu-boost \
     --set-env-vars "LLM_MODEL=gemini-2.5-flash,LLM_TEMPERATURE=0,DATA_PATH=data/bank_churn_dataset_80k.csv,LOG_LEVEL=INFO,FRONTEND_URL=${FRONTEND_URL}" \
     --set-secrets "GOOGLE_API_KEY=google-api-key:latest,DATABASE_URL=supabase-database-url:latest" \
     --quiet

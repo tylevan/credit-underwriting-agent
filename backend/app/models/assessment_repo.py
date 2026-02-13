@@ -9,9 +9,12 @@ Chọn mode tự động dựa trên biến DATABASE_URL.
 """
 
 import json
+import logging
 import os
 from datetime import datetime, date
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ── Detect mode ──
 _USE_POSTGRES = bool(os.getenv("DATABASE_URL"))
@@ -28,6 +31,10 @@ async def _get_pg_pool():
             os.getenv("DATABASE_URL"),
             min_size=1,
             max_size=5,
+            # Supabase dùng connection pooler (Supavisor/pgBouncer)
+            # cần tắt statement cache để tránh lỗi prepared statement
+            statement_cache_size=0,
+            server_settings={"plan_cache_mode": "force_custom_plan"},
         )
     return _PG_POOL
 
@@ -42,34 +49,38 @@ async def init_db(db_path: str = None):
     _USE_POSTGRES = bool(os.getenv("DATABASE_URL"))
 
     if _USE_POSTGRES:
-        pool = await _get_pg_pool()
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS assessments (
-                    id SERIAL PRIMARY KEY,
-                    thread_id TEXT NOT NULL,
-                    customer_id TEXT NOT NULL,
-                    customer_name TEXT DEFAULT '',
-                    loan_amount DOUBLE PRECISION NOT NULL,
-                    term_months INTEGER NOT NULL,
-                    decision TEXT,
-                    cic_score INTEGER,
-                    dti DOUBLE PRECISION,
-                    approved_limit DOUBLE PRECISION,
-                    reasoning_trail TEXT DEFAULT '[]',
-                    report TEXT DEFAULT '',
-                    needs_human_review INTEGER DEFAULT 0,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_assessments_created_at
-                ON assessments(created_at)
-            """)
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_assessments_decision
-                ON assessments(decision)
-            """)
+        try:
+            pool = await _get_pg_pool()
+            async with pool.acquire() as conn:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS assessments (
+                        id SERIAL PRIMARY KEY,
+                        thread_id TEXT NOT NULL,
+                        customer_id TEXT NOT NULL,
+                        customer_name TEXT DEFAULT '',
+                        loan_amount DOUBLE PRECISION NOT NULL,
+                        term_months INTEGER NOT NULL,
+                        decision TEXT,
+                        cic_score INTEGER,
+                        dti DOUBLE PRECISION,
+                        approved_limit DOUBLE PRECISION,
+                        reasoning_trail TEXT DEFAULT '[]',
+                        report TEXT DEFAULT '',
+                        needs_human_review INTEGER DEFAULT 0,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_assessments_created_at
+                    ON assessments(created_at)
+                """)
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_assessments_decision
+                    ON assessments(decision)
+                """)
+            logger.info("PostgreSQL (Supabase) connected successfully.")
+        except Exception as e:
+            logger.warning(f"PostgreSQL init failed, will retry on first request: {e}")
     else:
         import aiosqlite
         if db_path:
