@@ -71,12 +71,18 @@ Chỉ DỪNG sớm nếu gặp auto_reject (nợ xấu, CIC quá thấp, tuổi 
 [Gợi ý nếu bị từ chối hoặc cần điều chỉnh]
 ```
 
+## SẢN PHẨM VAY
+- Số tiền vay: {CreditPolicy.LOAN_MIN:,.0f} đến {CreditPolicy.LOAN_MAX:,.0f} VND
+- Kỳ hạn vay: {CreditPolicy.TERM_MIN_MONTHS} đến {CreditPolicy.TERM_MAX_MONTHS} tháng (tối đa 5 năm)
+- Hạn mức = MIN({CreditPolicy.LOAN_MAX:,.0f}, {CreditPolicy.BASE_MULTIPLIER} x Thu nhập x Hệ số CIC)
+
 ## LƯU Ý QUAN TRỌNG
 - LUÔN gọi ĐỦ 5 tools trước khi ra quyết định (trừ khi auto_reject)
 - LUÔN kiểm tra nợ xấu TRƯỚC KHI tính toán khác
 - LUÔN giải thích quyết định dựa trên số liệu cụ thể
 - KHÔNG bịa số liệu - chỉ dùng data từ tools
 - Nếu có bất kỳ auto_reject từ tool nào → REJECTED ngay, DỪNG thẩm định
+- Kỳ hạn vay tối đa là {CreditPolicy.TERM_MAX_MONTHS} tháng, số tiền vay tối đa là {CreditPolicy.LOAN_MAX:,.0f} VND
 """
 
     # Inject scratchpad (giới hạn 500 ký tự cuối)

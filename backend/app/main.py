@@ -80,6 +80,96 @@ async def assess_credit(request: AssessmentRequest):
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
+    # ═══════════════════════════════════════════════
+    # PRE-VALIDATION: reject immediately if basic rules fail
+    # ═══════════════════════════════════════════════
+    pre_errors = []
+
+    # 1. Customer existence
+    try:
+        customer = get_customer_by_id(int(request.customer_id))
+        if customer is None:
+            pre_errors.append(f"Khách hàng ID {request.customer_id} không tồn tại trong hệ thống.")
+    except (ValueError, TypeError):
+        pre_errors.append(f"ID khách hàng '{request.customer_id}' không hợp lệ.")
+
+    # 2. Loan amount range
+    if request.loan_amount < CreditPolicy.LOAN_MIN:
+        pre_errors.append(
+            f"Số tiền vay {request.loan_amount:,.0f} VND thấp hơn mức tối thiểu {CreditPolicy.LOAN_MIN:,.0f} VND."
+        )
+    if request.loan_amount > CreditPolicy.LOAN_MAX:
+        pre_errors.append(
+            f"Số tiền vay {request.loan_amount:,.0f} VND vượt quá trần tối đa {CreditPolicy.LOAN_MAX:,.0f} VND."
+        )
+
+    # 3. Term months range
+    if request.term_months < CreditPolicy.TERM_MIN_MONTHS:
+        pre_errors.append(
+            f"Kỳ hạn {request.term_months} tháng ngắn hơn tối thiểu {CreditPolicy.TERM_MIN_MONTHS} tháng."
+        )
+    if request.term_months > CreditPolicy.TERM_MAX_MONTHS:
+        pre_errors.append(
+            f"Kỳ hạn {request.term_months} tháng vượt quá tối đa {CreditPolicy.TERM_MAX_MONTHS} tháng (5 năm)."
+        )
+
+    if pre_errors:
+        rejection_reason = " ".join(pre_errors)
+        rejection_trail = [{
+            "step": 0,
+            "action": "Kiểm tra điều kiện đầu vào",
+            "result": "KHÔNG ĐẠT",
+            "decision": "FAIL",
+            "detail": rejection_reason,
+            "policy_ref": "Điều kiện cơ bản — Mục 1, 2",
+        }]
+        report = (
+            f"## QUYẾT ĐỊNH: REJECTED\n\n"
+            f"## LÝ DO\n{rejection_reason}\n\n"
+            f"## ĐỀ XUẤT\n"
+            f"Vui lòng kiểm tra lại thông tin và đảm bảo:\n"
+            f"- ID khách hàng tồn tại trong hệ thống\n"
+            f"- Số tiền vay từ {CreditPolicy.LOAN_MIN:,.0f} đến {CreditPolicy.LOAN_MAX:,.0f} VND\n"
+            f"- Kỳ hạn vay từ {CreditPolicy.TERM_MIN_MONTHS} đến {CreditPolicy.TERM_MAX_MONTHS} tháng\n"
+        )
+
+        # Save to DB
+        try:
+            await assessment_repo.save_assessment({
+                "thread_id": thread_id,
+                "customer_id": request.customer_id,
+                "customer_name": "",
+                "loan_amount": request.loan_amount,
+                "term_months": request.term_months,
+                "decision": "REJECTED",
+                "cic_score": None,
+                "dti": None,
+                "approved_limit": None,
+                "reasoning_trail": rejection_trail,
+                "report": report,
+                "needs_human_review": False,
+            })
+        except Exception as db_err:
+            logger.warning(f"Failed to save pre-validation rejection: {db_err}")
+
+        logger.info("pre_validation_rejected", extra={
+            "thread_id": thread_id,
+            "customer_id": request.customer_id,
+            "errors": pre_errors,
+        })
+
+        return AssessmentResponse(
+            success=True,
+            thread_id=thread_id,
+            decision="REJECTED",
+            report=report,
+            reasoning_trail=rejection_trail,
+            needs_human_review=False,
+        )
+
+    # ═══════════════════════════════════════════════
+    # PASSED PRE-VALIDATION → Run AI Agent
+    # ═══════════════════════════════════════════════
     prompt = (
         f"Thẩm định hồ sơ vay tín chấp tiêu dùng:\n"
         f"- ID Khách hàng: {request.customer_id}\n"
