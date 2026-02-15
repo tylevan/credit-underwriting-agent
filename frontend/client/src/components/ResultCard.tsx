@@ -470,61 +470,72 @@ export function ResultCard({ data }: ResultCardProps) {
             </div>
           </div>
 
-          {/* ── Section 3: Lý do ── */}
-          {data.reason && (
-            <div>
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" /> Lý do
-              </h4>
-              <p
-                className={cn(
-                  "text-sm leading-relaxed p-4 rounded-xl border",
-                  theme.accentBg,
-                  theme.borderColor,
-                  "text-slate-700"
-                )}
-              >
-                {data.reason}
-              </p>
-            </div>
-          )}
+          {/* ── Section 3: Diễn giải chi tiết ── */}
+          {(data.reason || data.recommendation) && (() => {
+            // Combine reason + recommendation into one section
+            const parts: string[] = [];
+            if (data.reason) parts.push(data.reason);
+            if (data.recommendation) {
+              const { summary, details } = parseRecommendation(data.recommendation);
+              parts.push(summary);
+              parts.push(...details);
+            }
+            // Deduplicate and clean
+            const allText = Array.from(new Set(parts))
+              .map(t => t.replace(/\*\*/g, "").trim())
+              .filter(t => t.length > 0);
 
-          {/* ── Section 4: Đề xuất ── */}
-          {data.recommendation && (() => {
-            const { summary, details } = parseRecommendation(data.recommendation);
             return (
               <div>
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5" /> Đề xuất
+                  <Info className="w-3.5 h-3.5" /> Diễn giải chi tiết
                 </h4>
-                <div className="rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden">
-                  {/* Summary — main insight */}
-                  <div className="flex items-start gap-3 px-4 py-3.5">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 border border-blue-200 flex items-center justify-center flex-shrink-0 mt-0.5 text-blue-600">
-                      <Lightbulb className="w-4 h-4" />
-                    </div>
-                    <p className="text-[13px] leading-relaxed text-slate-800 font-semibold">
-                      {summary}
-                    </p>
-                  </div>
-
-                  {/* Details — condensed supporting points */}
-                  {details.length > 0 && (
-                    <div className="px-4 pb-3 pt-0">
-                      <div className="border-t border-blue-100 pt-2.5 space-y-1.5">
-                        {details.map((item, idx) => (
-                          <div key={idx} className="flex items-baseline gap-2 text-[12px] text-slate-500 leading-relaxed">
-                            <span className="w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 mt-1.5" />
-                            <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                <div
+                  className={cn(
+                    "rounded-xl border p-4 space-y-2",
+                    theme.accentBg,
+                    theme.borderColor,
                   )}
+                >
+                  {allText.map((text, idx) => (
+                    <p key={idx} className="text-[13px] leading-relaxed text-slate-700">
+                      {idx > 0 && <span className="text-slate-400 mr-1.5">•</span>}
+                      {text}
+                    </p>
+                  ))}
                 </div>
               </div>
             );
           })()}
+
+          {/* ── Section 4: Đề xuất (chỉ hiện khi REVIEW — DTI cận ngưỡng, cần điều chỉnh) ── */}
+          {data.status === "REVIEW" && (
+            <div>
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <Lightbulb className="w-3.5 h-3.5" /> Đề xuất
+              </h4>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-2">
+                {typeof data.dti === "number" && data.dti > 40 && data.dti <= 50 && (
+                  <p className="text-[13px] leading-relaxed text-amber-800 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>DTI {data.dti}% vượt ngưỡng 40%. Đề xuất <strong>giảm hạn mức vay</strong> hoặc <strong>tăng thời hạn vay</strong> để giảm tỷ lệ DTI về mức cho phép.</span>
+                  </p>
+                )}
+                {data.limit != null && data.monthlyPayment != null && (
+                  <p className="text-[13px] leading-relaxed text-amber-800 flex items-start gap-2">
+                    <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>Có thể xem xét điều chỉnh khoản vay xuống mức hạn mức được duyệt {formatCurrency(data.limit)} để đảm bảo khả năng trả nợ.</span>
+                  </p>
+                )}
+                {!(typeof data.dti === "number" && data.dti > 40) && (
+                  <p className="text-[13px] leading-relaxed text-amber-800 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>Hồ sơ cần được xem xét bởi chuyên viên cấp cao trước khi đưa ra quyết định cuối cùng.</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Section 5: CTA — Xem luồng quyết định ── */}
           {hasTrail && (
