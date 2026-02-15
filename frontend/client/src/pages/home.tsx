@@ -4,6 +4,16 @@ import { ChatInterface, Message } from "@/components/ChatInterface";
 import { AssessmentResult } from "@/components/ResultCard";
 import { assessCredit, chatWithAgent, type AssessmentResponse } from "@/lib/api";
 
+/** Strip markdown bold markers and clean extra whitespace (preserving newlines) */
+function cleanMarkdown(text: string): string {
+  return text
+    .replace(/\*\*/g, "")
+    .split("\n")
+    .map(line => line.replace(/\s+/g, " ").trim())
+    .join("\n")
+    .trim();
+}
+
 function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: string; amount: number; term: number }): AssessmentResult {
   const trail = res.reasoning_trail || [];
 
@@ -63,7 +73,7 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
 
   let reason: string;
   if (failParts.length > 0) {
-    reason = failParts.join(". ");
+    reason = cleanMarkdown(failParts.join(". "));
   } else if (status === "APPROVED") {
     reason = "Hồ sơ đạt tất cả tiêu chí thẩm định. Đủ điều kiện phê duyệt khoản vay.";
   } else {
@@ -76,12 +86,12 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
   if (res.report) {
     const recMatch = res.report.match(/##\s*ĐỀ XUẤT[^\n]*\n([\s\S]*?)(?=##|$)/);
     if (recMatch) {
-      recommendation = recMatch[1].trim().replace(/^-\s*/gm, '• ');
+      recommendation = cleanMarkdown(recMatch[1].replace(/^-\s*/gm, '• '));
     }
     if (!recommendation) {
       const lyDoMatch = res.report.match(/##\s*LÝ DO[^\n]*\n([\s\S]*?)(?=##|$)/);
       if (lyDoMatch) {
-        recommendation = lyDoMatch[1].trim();
+        recommendation = cleanMarkdown(lyDoMatch[1]);
       }
     }
   }
@@ -163,13 +173,13 @@ function parseChatReport(text: string): AssessmentResult | null {
 
   // ── Reason ──
   const lyDoMatch = text.match(/##\s*LÝ DO[^\n]*\n([\s\S]*?)(?=##|$)/);
-  const reason = lyDoMatch ? lyDoMatch[1].trim() : "Xem chi tiết trong báo cáo.";
+  const reason = lyDoMatch ? cleanMarkdown(lyDoMatch[1]) : "Xem chi tiết trong báo cáo.";
 
   // ── Recommendation ──
   let recommendation: string | undefined;
   const recMatch = text.match(/##\s*ĐỀ XUẤT[^\n]*\n([\s\S]*?)(?=##|$)/);
   if (recMatch) {
-    recommendation = recMatch[1].trim().replace(/^-\s*/gm, '• ');
+    recommendation = cleanMarkdown(recMatch[1].replace(/^-\s*/gm, '• '));
   }
 
   return {
