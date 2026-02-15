@@ -303,8 +303,21 @@ export default function Home() {
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
+    // Show progress stepper while waiting
+    const loadingMsg: Message = {
+      id: "loading",
+      role: "system",
+      content: "Đang xử lý yêu cầu...",
+      isProgress: true,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, loadingMsg]);
+
     try {
       const response = await chatWithAgent(message, threadId);
+
+      // Remove progress stepper
+      setMessages(prev => prev.filter(m => m.id !== "loading"));
 
       if (response.success) {
         if (response.thread_id) setThreadId(response.thread_id);
@@ -342,6 +355,7 @@ export default function Home() {
         }]);
       }
     } catch (error) {
+      setMessages(prev => prev.filter(m => m.id !== "loading"));
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: "system",
