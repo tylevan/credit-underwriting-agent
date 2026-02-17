@@ -4,6 +4,7 @@ Chứa tất cả state fields cho LangGraph workflow.
 """
 
 from typing import Annotated, Sequence, TypedDict, Optional
+from typing_extensions import NotRequired
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
@@ -14,7 +15,7 @@ class AgentState(TypedDict):
 
     Fields:
         messages: Lịch sử hội thoại (auto-append qua add_messages).
-        scratchpad: Working memory ngắn gọn cho LLM.
+        underwriting_state: Runtime state có cấu trúc lấy từ tool outputs.
         reasoning_trail: Danh sách structured reasoning từ tools (audit trail).
         needs_human_review: Flag yêu cầu human review.
         human_decision: Quyết định từ human reviewer (APPROVED/REJECTED).
@@ -22,9 +23,9 @@ class AgentState(TypedDict):
         final_decision: Quyết định cuối cùng sau guardrails.
     """
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    scratchpad: str
-    reasoning_trail: list[dict]
-    needs_human_review: bool
-    human_decision: Optional[str]
-    human_note: Optional[str]
-    final_decision: Optional[str]
+    underwriting_state: NotRequired[dict]
+    reasoning_trail: NotRequired[list[dict]]
+    needs_human_review: NotRequired[bool]
+    human_decision: NotRequired[Optional[str]]
+    human_note: NotRequired[Optional[str]]
+    final_decision: NotRequired[Optional[str]]

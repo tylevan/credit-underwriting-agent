@@ -181,7 +181,7 @@ async def assess_credit(request: AssessmentRequest):
     try:
         inputs = {
             "messages": [HumanMessage(content=prompt)],
-            "scratchpad": "",
+            "underwriting_state": {},
             "reasoning_trail": [],
             "needs_human_review": False,
             "human_decision": None,

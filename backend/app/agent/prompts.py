@@ -6,10 +6,10 @@ from langchain_core.messages import SystemMessage
 from ..config.policy_constants import CreditPolicy
 
 
-def build_system_prompt(scratchpad: str = "", reasoning_trail: list[dict] = None) -> SystemMessage:
+def build_system_prompt(runtime_summary: str = "", reasoning_trail: list[dict] = None) -> SystemMessage:
     """
-    Build system prompt, inject scratchpad và reasoning trail nếu có.
-    Scratchpad được giới hạn 500 ký tự cuối để tránh prompt phình to.
+    Build system prompt, inject runtime summary + reasoning trail nếu có.
+    Runtime summary là bản tóm tắt ngắn từ structured state của LangGraph.
     """
     base_prompt = f"""
 Bạn là Chuyên viên Thẩm định Tín dụng AI của ngân hàng.
@@ -85,10 +85,10 @@ Chỉ DỪNG sớm nếu gặp auto_reject (nợ xấu, CIC quá thấp, tuổi 
 - Kỳ hạn vay tối đa là {CreditPolicy.TERM_MAX_MONTHS} tháng, số tiền vay tối đa là {CreditPolicy.LOAN_MAX:,.0f} VND
 """
 
-    # Inject scratchpad (giới hạn 500 ký tự cuối)
-    if scratchpad:
-        trimmed = scratchpad[-500:] if len(scratchpad) > 500 else scratchpad
-        base_prompt += f"\n\n### GHI CHÚ TẠM THỜI:\n{trimmed}"
+    # Inject runtime summary (giới hạn ngắn gọn để model reasoning)
+    if runtime_summary:
+        trimmed = runtime_summary[-500:] if len(runtime_summary) > 500 else runtime_summary
+        base_prompt += f"\n\n### TÓM TẮT STATE HIỆN TẠI:\n{trimmed}"
 
     # Inject reasoning trail
     if reasoning_trail:

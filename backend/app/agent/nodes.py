@@ -4,7 +4,7 @@ Agent Nodes: Các node trong LangGraph workflow.
 Nodes:
 1. call_model     - Gọi LLM
 2. call_tool      - Thực thi tools
-3. update_notes   - Cập nhật scratchpad + reasoning_trail
+3. update_notes   - Cập nhật runtime state + reasoning_trail
 4. validate       - Guardrails kiểm tra quyết định
 5. human_review   - Human-in-the-Loop checkpoint
 """
@@ -13,14 +13,13 @@ import json
 import logging
 from datetime import datetime
 
-from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .state import AgentState
 from .prompts import build_system_prompt
 from ..tools import ALL_TOOLS, TOOLS_BY_NAME
 from ..config.settings import settings
-from ..config.policy_constants import CreditPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,44 @@ llm = ChatGoogleGenerativeAI(
 llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
 
+def _build_runtime_summary(underwriting_state: dict) -> str:
+    """Tạo summary ngắn cho LLM từ structured runtime state."""
+    if not underwriting_state:
+        return ""
+
+    lines = []
+
+    customer = underwriting_state.get("customer")
+    if customer:
+        lines.append(
+            f"📋 KH: {customer.get('full_name')}, {customer.get('age')} tuổi, thu nhập {customer.get('total_income', 0):,.0f} VND"
+        )
+
+    cic = underwriting_state.get("cic")
+    if cic:
+        line = (
+            f"📊 CIC: {cic.get('credit_sco')}, Nhóm nợ: {cic.get('debt_group')}, "
+            f"Lãi suất: {cic.get('suggested_rate')}%"
+        )
+        if cic.get("auto_reject"):
+            line += f" ❌ AUTO REJECT: {cic.get('auto_reject_reasons')}"
+        lines.append(line)
+
+    monthly_payment = underwriting_state.get("monthly_payment")
+    if monthly_payment:
+        lines.append(f"💰 Trả/tháng: {monthly_payment.get('monthly_payment', 0):,.0f} VND")
+
+    dti = underwriting_state.get("dti")
+    if dti:
+        lines.append(f"📈 DTI: {dti.get('dti_percent')}% - {dti.get('assessment')}")
+
+    approved_limit = underwriting_state.get("approved_limit")
+    if approved_limit:
+        lines.append(f"🏦 Hạn mức: {approved_limit.get('final_approved_limit', 0):,.0f} VND")
+
+    return "\n".join(lines)
+
+
 # ════════════════════════════════════════════
 # NODE 1: CALL MODEL
 # ════════════════════════════════════════════
@@ -40,14 +77,16 @@ llm_with_tools = llm.bind_tools(ALL_TOOLS)
 def call_model(state: AgentState) -> dict:
     """
     Gọi LLM để suy nghĩ và ra quyết định.
-    Inject scratchpad + reasoning_trail vào system prompt.
+    Inject runtime summary + reasoning_trail vào system prompt.
     """
     messages = state["messages"]
-    scratchpad = state.get("scratchpad", "")
+    underwriting_state = state.get("underwriting_state", {})
     reasoning_trail = state.get("reasoning_trail", [])
 
+    runtime_summary = _build_runtime_summary(underwriting_state)
+
     # Build system prompt với context
-    system_msg = build_system_prompt(scratchpad, reasoning_trail)
+    system_msg = build_system_prompt(runtime_summary, reasoning_trail)
     input_messages = [system_msg] + list(messages)
 
     # Gọi LLM
@@ -124,12 +163,11 @@ def call_tool(state: AgentState) -> dict:
 
 def update_scratchpad(state: AgentState) -> dict:
     """
-    Cập nhật Working Memory và Reasoning Trail.
+    Cập nhật runtime state có cấu trúc và Reasoning Trail.
 
-    DEDUP FIX: Track existing step numbers to prevent duplicates
-    when messages[-5:] overlaps with previously processed tools.
+    Runtime state được lưu trong LangGraph state, không phụ thuộc prompt history.
     """
-    scratchpad = state.get("scratchpad", "")
+    underwriting_state = dict(state.get("underwriting_state", {}))
     reasoning_trail = list(state.get("reasoning_trail", []))
 
     # Track existing steps to prevent duplicates
@@ -150,7 +188,6 @@ def update_scratchpad(state: AgentState) -> dict:
         if not isinstance(result, dict):
             continue
 
-        # Extract reasoning step (for both success and failed tools)
         reasoning_step = result.get("reasoning_step")
         if reasoning_step:
             step_key = (reasoning_step.get("step"), reasoning_step.get("action"))
@@ -163,39 +200,38 @@ def update_scratchpad(state: AgentState) -> dict:
 
         data = result.get("data", {})
 
-        # Update scratchpad per tool (idempotent — check before appending)
-        if msg.name == "get_customer_info" and f"KH: {data.get('full_name')}" not in scratchpad:
-            scratchpad += (
-                f"\n📋 KH: {data.get('full_name')}, "
-                f"{data.get('age')} tuổi, "
-                f"thu nhập {data.get('total_income', 0):,.0f} VND"
-            )
-            if not data.get('basic_eligible'):
-                scratchpad += f" ⚠️ ISSUES: {data.get('eligibility_issues')}"
-
-        elif msg.name == "get_cic_report" and f"CIC: {data.get('credit_sco')}" not in scratchpad:
-            scratchpad += (
-                f"\n📊 CIC: {data.get('credit_sco')}, "
-                f"Nhóm nợ: {data.get('debt_group')}, "
-                f"Lãi suất: {data.get('suggested_rate')}%"
-            )
-            if data.get("auto_reject"):
-                scratchpad += f" ❌ AUTO REJECT: {data.get('auto_reject_reasons')}"
-
-        elif msg.name == "calculate_monthly_payment" and "Trả/tháng" not in scratchpad:
-            scratchpad += f"\n💰 Trả/tháng: {data.get('monthly_payment', 0):,.0f} VND"
-
-        elif msg.name == "calculate_dti" and "DTI:" not in scratchpad:
-            scratchpad += (
-                f"\n📈 DTI: {data.get('dti_percent')}% - "
-                f"{data.get('assessment')}"
-            )
-
-        elif msg.name == "calculate_max_loan" and "Hạn mức:" not in scratchpad:
-            scratchpad += f"\n🏦 Hạn mức: {data.get('final_approved_limit', 0):,.0f} VND"
+        if msg.name == "get_customer_info":
+            underwriting_state["customer"] = {
+                "full_name": data.get("full_name"),
+                "age": data.get("age"),
+                "total_income": data.get("total_income", 0),
+                "basic_eligible": data.get("basic_eligible", True),
+                "eligibility_issues": data.get("eligibility_issues", []),
+            }
+        elif msg.name == "get_cic_report":
+            underwriting_state["cic"] = {
+                "credit_sco": data.get("credit_sco"),
+                "debt_group": data.get("debt_group"),
+                "suggested_rate": data.get("suggested_rate"),
+                "auto_reject": data.get("auto_reject", False),
+                "auto_reject_reasons": data.get("auto_reject_reasons", []),
+            }
+        elif msg.name == "calculate_monthly_payment":
+            underwriting_state["monthly_payment"] = {
+                "monthly_payment": data.get("monthly_payment", 0),
+            }
+        elif msg.name == "calculate_dti":
+            underwriting_state["dti"] = {
+                "dti_percent": data.get("dti_percent"),
+                "assessment": data.get("assessment"),
+            }
+        elif msg.name == "calculate_max_loan":
+            underwriting_state["approved_limit"] = {
+                "final_approved_limit": data.get("final_approved_limit", 0),
+            }
 
     return {
-        "scratchpad": scratchpad,
+        "underwriting_state": underwriting_state,
         "reasoning_trail": reasoning_trail,
     }
 

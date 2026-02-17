@@ -37,7 +37,7 @@ class AssessmentResponse(BaseModel):
     thread_id: str
     decision: Optional[str] = None  # APPROVED / REVIEW / REJECTED
     report: Optional[str] = None
-    reasoning_trail: list[dict] = []
+    reasoning_trail: list[dict] = Field(default_factory=list)
     needs_human_review: bool = False
     error: Optional[str] = None
 

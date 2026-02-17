@@ -129,18 +129,17 @@ async def save_assessment(data: dict) -> int:
     reasoning_json = json.dumps(data.get("reasoning_trail", []), ensure_ascii=False)
     created_at_raw = data.get("created_at", datetime.now().isoformat())
 
-    if _USE_POSTGRES:
-        # asyncpg cần datetime object, không nhận string
-        if isinstance(created_at_raw, str):
-            try:
-                created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                created_at = datetime.now()
-        elif isinstance(created_at_raw, datetime):
-            created_at = created_at_raw
-        else:
+    if isinstance(created_at_raw, str):
+        try:
+            created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
             created_at = datetime.now()
+    elif isinstance(created_at_raw, datetime):
+        created_at = created_at_raw
+    else:
+        created_at = datetime.now()
 
+    if _USE_POSTGRES:
         try:
             pool = await _get_pg_pool()
             async with pool.acquire() as conn:
@@ -196,7 +195,7 @@ async def save_assessment(data: dict) -> int:
                     reasoning_json,
                     data.get("report", ""),
                     1 if data.get("needs_human_review") else 0,
-                    created_at,
+                    created_at.isoformat(),
                 ),
             )
             await db.commit()
