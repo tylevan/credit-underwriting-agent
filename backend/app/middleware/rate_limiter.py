@@ -8,8 +8,9 @@ import logging
 from collections import defaultdict
 from datetime import date
 
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from ..config.settings import settings
 
@@ -77,13 +78,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "rate_limit_exceeded",
                 extra={"ip": client_ip, "count": count, "limit": settings.RATE_LIMIT_PER_DAY},
             )
-            raise HTTPException(
+            return JSONResponse(
                 status_code=429,
-                detail={
-                    "error": "Bạn đã vượt quá giới hạn sử dụng trong ngày.",
-                    "message": f"Tối đa {settings.RATE_LIMIT_PER_DAY} yêu cầu/ngày. Vui lòng quay lại vào ngày mai.",
-                    "limit": settings.RATE_LIMIT_PER_DAY,
-                    "used": count,
+                content={
+                    "detail": {
+                        "error": "Bạn đã vượt quá giới hạn sử dụng trong ngày.",
+                        "message": f"Tối đa {settings.RATE_LIMIT_PER_DAY} yêu cầu/ngày. Vui lòng quay lại vào ngày mai.",
+                        "limit": settings.RATE_LIMIT_PER_DAY,
+                        "used": count,
+                    }
                 },
             )
 
