@@ -57,6 +57,10 @@ origins = [
 # Lọc bỏ chuỗi rỗng
 origins = [o for o in origins if o]
 
+# ── Rate Limiting (inner — chạy sau CORS) ──
+app.add_middleware(RateLimitMiddleware)
+
+# ── CORS (outer — bọc ngoài cùng, đảm bảo mọi response đều có CORS headers) ──
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -64,9 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ── Rate Limiting ──
-app.add_middleware(RateLimitMiddleware)
 
 app.add_exception_handler(Exception, global_exception_handler)
 

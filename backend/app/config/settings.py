@@ -34,7 +34,7 @@ class Settings:
     
     # ── Rate Limiting ──
     RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
-    RATE_LIMIT_PER_DAY: int = int(os.getenv("RATE_LIMIT_PER_DAY", "3"))
+    RATE_LIMIT_PER_DAY: int = int(os.getenv("RATE_LIMIT_PER_DAY", "10"))
     
     # ── Logging ──
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
