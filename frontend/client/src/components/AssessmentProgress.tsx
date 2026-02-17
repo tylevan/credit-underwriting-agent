@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { UserCheck, ShieldCheck, BarChart3, Landmark, Check, Loader2 } from "lucide-react";
+import { UserCheck, ShieldCheck, BarChart3, Landmark, FileText, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -7,6 +7,7 @@ const STEPS = [
     { label: "Tra cứu điểm CIC", icon: ShieldCheck },
     { label: "Phân tích DTI", icon: BarChart3 },
     { label: "Xác định hạn mức", icon: Landmark },
+    { label: "Đang tổng hợp thông tin...", icon: FileText },
 ];
 
 /** Duration for each step before transitioning */
@@ -24,30 +25,33 @@ export function AssessmentProgress({ active = true }: AssessmentProgressProps) {
     const [currentStep, setCurrentStep] = useState(0);
     const [phase, setPhase] = useState<StepPhase>("active");
 
+    const isLastStep = currentStep === STEPS.length - 1;
+
     useEffect(() => {
         if (!active) return;
 
         let timer: ReturnType<typeof setTimeout>;
 
         if (phase === "active") {
+            // Last step stays in "active" permanently (pulsing until result arrives)
+            if (isLastStep) return;
             // Step is running → after delay, mark as done
             timer = setTimeout(() => setPhase("done"), STEP_ACTIVE_MS);
         } else if (phase === "done") {
             // Show checkmark briefly → then fade out
             timer = setTimeout(() => setPhase("fadeout"), STEP_DONE_MS);
         } else if (phase === "fadeout") {
-            // After fade animation → move to next step or stay on last
+            // After fade animation → move to next step
             timer = setTimeout(() => {
                 if (currentStep < STEPS.length - 1) {
                     setCurrentStep((prev) => prev + 1);
                     setPhase("active");
                 }
-                // Last step stays in "fadeout" (will be removed when result arrives)
             }, 300);
         }
 
         return () => clearTimeout(timer);
-    }, [active, phase, currentStep]);
+    }, [active, phase, currentStep, isLastStep]);
 
     const step = STEPS[currentStep];
     if (!step) return null;
@@ -58,7 +62,8 @@ export function AssessmentProgress({ active = true }: AssessmentProgressProps) {
             className={cn(
                 "inline-flex items-center gap-2.5 transition-all duration-300",
                 phase === "fadeout" && "opacity-0 -translate-y-1",
-                phase === "hidden" && "hidden"
+                phase === "hidden" && "hidden",
+                isLastStep && phase === "active" && "animate-pulse"
             )}
         >
             {/* Icon / spinner / check */}
