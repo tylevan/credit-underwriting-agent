@@ -292,10 +292,14 @@ export default function Home() {
       }
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== "loading"));
+      const errMsg = error instanceof Error ? error.message : "Unknown";
+      const isRateLimit = errMsg.includes("giới hạn") || errMsg.includes("yêu cầu/ngày");
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: "system",
-        content: `❌ Không thể kết nối tới backend. Vui lòng kiểm tra kết nối mạng và thử lại.\nLỗi: ${error instanceof Error ? error.message : "Unknown"}`,
+        content: isRateLimit
+          ? `⚠️ ${errMsg}`
+          : `❌ Không thể kết nối tới backend. Vui lòng kiểm tra kết nối mạng và thử lại.\nLỗi: ${errMsg}`,
         timestamp: new Date()
       }]);
     } finally {
@@ -366,10 +370,14 @@ export default function Home() {
       }
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== "loading"));
+      const errMsg = error instanceof Error ? error.message : "Unknown";
+      const isRateLimit = errMsg.includes("giới hạn") || errMsg.includes("yêu cầu/ngày");
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: "system",
-        content: `❌ Không thể kết nối. Lỗi: ${error instanceof Error ? error.message : "Unknown"}`,
+        content: isRateLimit
+          ? `⚠️ ${errMsg}`
+          : `❌ Không thể kết nối. Lỗi: ${errMsg}`,
         timestamp: new Date()
       }]);
     } finally {
