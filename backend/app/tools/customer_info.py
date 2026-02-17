@@ -19,21 +19,7 @@ class CustomerInfoInput(BaseModel):
 def get_customer_info(customer_id: str) -> dict:
     """
     Lấy thông tin khách hàng từ Core Banking.
-
-    DÙNG TOOL NÀY ĐẦU TIÊN khi bắt đầu thẩm định.
-
-    TOOL TRẢ VỀ:
-    - full_name, age, gender, occupation, address, origin_province
-    - balance: Số dư tài khoản / Thu nhập ước tính (VND)
-    - monthly_ir: Thu nhập hàng tháng khác (VND)
-    - tenure_ye: Số năm làm việc
-    - married: Tình trạng hôn nhân (0: Độc thân, 1: Đã kết hôn)
-    - customer_segment: Phân khúc KH (Priority/Standard/Basic)
-    - total_income: balance + monthly_ir
-    - net_income: total_income - chi phí ước tính
-
-    KIỂM TRA NGAY:
-    - age: Phải từ 18-60 tuổi
+    Trả về: thông tin cá nhân, thu nhập (total_income), điều kiện cơ bản (basic_eligible).
     """
     try:
         customer = get_customer_by_id(int(customer_id))

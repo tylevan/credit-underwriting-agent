@@ -22,14 +22,8 @@ class MonthlyPaymentInput(BaseModel):
 @tool("calculate_monthly_payment", args_schema=MonthlyPaymentInput)
 def calculate_monthly_payment(loan_amount: float, annual_rate: float, term_months: int) -> dict:
     """
-    Tính số tiền trả hàng tháng (dư nợ giảm dần).
-
-    CÔNG THỨC:
-    - Tiền gốc hàng tháng = loan_amount / term_months
-    - Tiền lãi tháng đầu = loan_amount * (annual_rate / 12 / 100)
-    - Tổng trả tháng đầu = Gốc + Lãi (cao nhất, giảm dần)
-
-    LƯU Ý: Dùng suggested_rate từ get_cic_report làm annual_rate
+    Tính số tiền trả hàng tháng theo phương pháp dư nợ giảm dần.
+    Trả về: monthly_payment, total_payment, total_interest.
     """
     if loan_amount <= 0 or annual_rate <= 0 or term_months <= 0:
         return {
@@ -95,14 +89,8 @@ class DTIInput(BaseModel):
 @tool("calculate_dti", args_schema=DTIInput)
 def calculate_dti(total_income: float, existing_debt: float, new_monthly_payment: float) -> dict:
     """
-    Tính DTI (Debt-to-Income Ratio).
-
-    CÔNG THỨC: DTI = (Tổng nợ hàng tháng / Tổng thu nhập) × 100%
-
-    ĐÁNH GIÁ:
-    - DTI <= 40%: PASS ✅
-    - DTI 40-50%: REVIEW ⚠️
-    - DTI > 50%: FAIL ❌
+    Tính tỷ lệ nợ trên thu nhập (DTI).
+    Trả về: dti_percent, assessment (PASS/REVIEW/FAIL).
     """
     if total_income <= 0:
         return {
@@ -158,9 +146,8 @@ class MaxLoanInput(BaseModel):
 @tool("calculate_max_loan", args_schema=MaxLoanInput)
 def calculate_max_loan(monthly_income: float, cic_score: int) -> dict:
     """
-    Tính hạn mức vay tín chấp tối đa.
-
-    CÔNG THỨC: Hạn mức = MIN(Trần policy, Thu nhập × 18 × Hệ số CIC)
+    Tính hạn mức vay tín chấp tối đa dựa trên thu nhập và CIC.
+    Trả về: final_approved_limit, is_rejected.
     """
     try:
         if monthly_income < 0:

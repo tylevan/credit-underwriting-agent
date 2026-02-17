@@ -19,20 +19,7 @@ class CICReportInput(BaseModel):
 def get_cic_report(customer_id: str) -> dict:
     """
     Lấy báo cáo tín dụng CIC của khách hàng.
-
-    TOOL TRẢ VỀ:
-    - credit_sco: Điểm tín dụng CIC (300-850)
-    - score_rating: Đánh giá (Rất tốt/Tốt/Khá/Trung bình)
-    - suggested_rate: Lãi suất đề xuất (%/năm)
-    - risk_score: Điểm rủi ro (0-1)
-    - debt_group: Nhóm nợ (1-5)
-    - has_bad_debt: Có nợ xấu không
-    - auto_reject: Có bị từ chối ngay không
-    - auto_reject_reasons: Lý do từ chối
-
-    ⚠️ TỪ CHỐI NGAY NẾU:
-    - credit_sco < 600
-    - risk_score >= 0.6 (Nhóm nợ 3+)
+    Trả về: credit_sco, suggested_rate, debt_group, auto_reject flag.
     """
     try:
         customer = get_customer_by_id(int(customer_id))

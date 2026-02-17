@@ -10,11 +10,7 @@ from .calculators import (
     calculate_dti,
     calculate_max_loan,
 )
-from .policy_and_utils import (
-    get_credit_policy,
-    get_customer_summary,
-    list_customers,
-)
+from .policy_and_utils import get_credit_policy
 
 # Danh sách tất cả tools
 ALL_TOOLS = [
@@ -24,8 +20,6 @@ ALL_TOOLS = [
     calculate_dti,
     calculate_max_loan,
     get_credit_policy,
-    get_customer_summary,
-    list_customers,
 ]
 
 # Lookup table: tên tool → tool object
@@ -40,7 +34,5 @@ __all__ = [
     "calculate_dti",
     "calculate_max_loan",
     "get_credit_policy",
-    "get_customer_summary",
-    "list_customers",
 ]
 

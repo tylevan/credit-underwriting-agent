@@ -24,6 +24,7 @@ from .models import assessment_repo
 from .agent.graph import credit_agent
 from .middleware.logging import setup_logging
 from .middleware.error_handler import global_exception_handler
+from .middleware.rate_limiter import RateLimitMiddleware
 from .utils.helpers import clean_agent_content
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ app = FastAPI(
 # ── CORS: cho phép frontend gọi API cross-origin ──
 origins = [
     settings.FRONTEND_URL,                          # Cloud Run env: Cloudflare Pages URL
-    "https://credit-underwriting-agent.pages.dev",   # Cloudflare Pages production
+    "https://credit-underwriting-agent.pages.dev",  # Cloudflare Pages production
+    "https://fagent.aimarketinghubs.com",            # custom domain
     "http://localhost:5173",                         # Vite default
     "http://localhost:5000",                         # Vite custom port
     "http://localhost:3000",                         # Fallback
@@ -62,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate Limiting ──
+app.add_middleware(RateLimitMiddleware)
 
 app.add_exception_handler(Exception, global_exception_handler)
 

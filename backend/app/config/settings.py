@@ -32,6 +32,10 @@ class Settings:
     # ── CORS ──
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
     
+    # ── Rate Limiting ──
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    RATE_LIMIT_PER_DAY: int = int(os.getenv("RATE_LIMIT_PER_DAY", "3"))
+    
     # ── Logging ──
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
