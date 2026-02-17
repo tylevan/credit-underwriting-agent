@@ -76,14 +76,14 @@ export function LoanForm({ onSubmit, isLoading }: LoanFormProps) {
               <Slider
                 value={[formData.amount]}
                 min={10000000}
-                max={500000000}
+                max={1200000000}
                 step={5000000}
                 onValueChange={([val]) => setFormData({ ...formData, amount: val })}
                 className="py-2"
               />
               <div className="flex justify-between text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
                 <span>10 Tr</span>
-                <span>500 Tr</span>
+                <span>1.2 Tỷ</span>
               </div>
             </div>
           </div>
