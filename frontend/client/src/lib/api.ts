@@ -62,6 +62,10 @@ export async function assessCredit(data: AssessmentRequest): Promise<AssessmentR
   });
 
   if (!res.ok) {
+    if (res.status === 429) {
+      const err = await res.json();
+      throw new Error(err.detail?.message || "Bạn đã vượt quá giới hạn sử dụng trong ngày.");
+    }
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
 
@@ -79,6 +83,10 @@ export async function chatWithAgent(message: string, threadId?: string): Promise
   });
 
   if (!res.ok) {
+    if (res.status === 429) {
+      const err = await res.json();
+      throw new Error(err.detail?.message || "Bạn đã vượt quá giới hạn sử dụng trong ngày.");
+    }
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
 
