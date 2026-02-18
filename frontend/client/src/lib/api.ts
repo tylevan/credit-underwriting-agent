@@ -41,6 +41,7 @@ export interface ChatResponse {
   success: boolean;
   thread_id: string;
   message: string;
+  reasoning_trail?: ReasoningStep[];
   error: string | null;
 }
 

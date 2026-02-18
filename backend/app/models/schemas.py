@@ -47,6 +47,7 @@ class ChatResponse(BaseModel):
     success: bool
     thread_id: str
     message: str
+    reasoning_trail: list[dict] = []
     error: Optional[str] = None
 
 

@@ -277,10 +277,22 @@ async def chat(request: ChatRequest):
 
     try:
         inputs = {"messages": [HumanMessage(content=request.message)]}
-        result = credit_agent.invoke(inputs, config=config)
-        content = clean_agent_content(result["messages"][-1].content)
 
-        return ChatResponse(success=True, thread_id=thread_id, message=content)
+        final_content = ""
+        reasoning_trail = []
+
+        for state in credit_agent.stream(inputs, config=config, stream_mode="values"):
+            last_msg = state["messages"][-1]
+            if isinstance(last_msg, AIMessage) and last_msg.content and not last_msg.tool_calls:
+                final_content = clean_agent_content(last_msg.content)
+            reasoning_trail = state.get("reasoning_trail", [])
+
+        return ChatResponse(
+            success=True,
+            thread_id=thread_id,
+            message=final_content,
+            reasoning_trail=reasoning_trail,
+        )
 
     except Exception as e:
         logger.error(f"chat_error: {e}", exc_info=True)

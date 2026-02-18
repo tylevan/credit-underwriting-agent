@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LoanForm } from "@/components/LoanForm";
 import { ChatInterface, Message } from "@/components/ChatInterface";
 import { AssessmentResult } from "@/components/ResultCard";
-import { assessCredit, chatWithAgent, API_BASE, type AssessmentResponse } from "@/lib/api";
+import { assessCredit, chatWithAgent, type AssessmentResponse } from "@/lib/api";
 
 /** Strip markdown bold markers and clean extra whitespace (preserving newlines) */
 function cleanMarkdown(text: string): string {
@@ -341,34 +341,21 @@ export default function Home() {
 
         if (cardData) {
           // Assessment result detected → show short summary + card
+          // Attach reasoning trail from response (same as LoanForm)
+          if (response.reasoning_trail?.length) {
+            cardData.reasoningTrail = response.reasoning_trail;
+          }
+
           const statusLabel = cardData.status === "APPROVED" ? "Phê duyệt"
             : cardData.status === "REJECTED" ? "Từ chối" : "Cần xem xét";
 
-          const cardMsgId = (Date.now() + 1).toString();
           setMessages(prev => [...prev, {
-            id: cardMsgId,
+            id: (Date.now() + 1).toString(),
             role: "system",
             content: `Khách hàng **${cardData.customerName}** được **${statusLabel}**. Xem chi tiết bên dưới.`,
             cardData,
             timestamp: new Date()
           }]);
-
-          // Fetch reasoning trail from API to enable inline trail popup
-          const currentThreadId = response.thread_id || threadId;
-          if (currentThreadId) {
-            fetch(`${API_BASE}/dashboard/assessments/${currentThreadId}`)
-              .then(res => res.json())
-              .then(json => {
-                if (json.success && json.data?.reasoning_trail?.length) {
-                  setMessages(prev => prev.map(m =>
-                    m.id === cardMsgId
-                      ? { ...m, cardData: { ...m.cardData!, reasoningTrail: json.data.reasoning_trail } }
-                      : m
-                  ));
-                }
-              })
-              .catch(() => { /* trail fetch failed silently — card still shows without trail button */ });
-          }
         } else {
           // Normal chat message
           setMessages(prev => [...prev, {
