@@ -89,15 +89,25 @@ async def assess_credit(request: AssessmentRequest):
     # ═══════════════════════════════════════════════
     # PRE-VALIDATION: reject immediately if basic rules fail
     # ═══════════════════════════════════════════════
-    pre_errors = []
 
-    # 1. Customer existence
+    # 1. Customer existence — reject immediately, NO DB save, NO card
     try:
         customer = get_customer_by_id(int(request.customer_id))
         if customer is None:
-            pre_errors.append(f"Khách hàng ID {request.customer_id} không tồn tại trong hệ thống.")
+            return AssessmentResponse(
+                success=False,
+                thread_id=thread_id,
+                error=f"Khách hàng ID {request.customer_id} không tồn tại trong hệ thống. Vui lòng kiểm tra lại số CCCD.",
+            )
     except (ValueError, TypeError):
-        pre_errors.append(f"ID khách hàng '{request.customer_id}' không hợp lệ.")
+        return AssessmentResponse(
+            success=False,
+            thread_id=thread_id,
+            error=f"ID khách hàng '{request.customer_id}' không hợp lệ.",
+        )
+
+    # 2. Loan amount / term validation (customer exists but params invalid)
+    pre_errors = []
 
     # 2. Loan amount range
     if request.loan_amount < CreditPolicy.LOAN_MIN:
@@ -276,10 +286,12 @@ async def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        # ── Pre-validation: detect customer ID and check existence early ──
+        # ── Pre-validation: CCCD existence + missing info ──
         id_match = re.search(r"(?:CCCD|cccd|ID|id)\s*[:\s]*(\d{4,})", request.message)
         if not id_match:
             id_match = re.search(r"\b(\d{4,})\b", request.message)
+
+        # 1. CCCD check — reject immediately if not found
         if id_match:
             try:
                 cust = get_customer_by_id(int(id_match.group(1)))
@@ -291,6 +303,31 @@ async def chat(request: ChatRequest):
                     )
             except (ValueError, TypeError):
                 pass
+
+        # 2. If requesting assessment, check for missing info
+        assessment_keywords = re.search(
+            r"thẩm định|đánh giá|xét duyệt|cho vay|vay vốn|duyệt vay",
+            request.message, re.IGNORECASE,
+        )
+        if assessment_keywords and id_match:
+            has_amount = bool(re.search(r"\d+\s*(?:tỷ|triệu|tr|VND|đồng|vnđ)", request.message, re.IGNORECASE))
+            has_term = bool(re.search(r"\d+\s*tháng", request.message, re.IGNORECASE))
+
+            missing = []
+            if not has_amount:
+                missing.append("số tiền vay")
+            if not has_term:
+                missing.append("kỳ hạn vay (tháng)")
+
+            if missing:
+                return ChatResponse(
+                    success=True,
+                    thread_id=thread_id,
+                    message=(
+                        f"Để thẩm định hồ sơ, vui lòng cung cấp thêm: **{', '.join(missing)}**.\n\n"
+                        f"Ví dụ: *Thẩm định CCCD {id_match.group(1)}, vay 200 triệu, kỳ hạn 36 tháng*"
+                    ),
+                )
 
         inputs = {"messages": [HumanMessage(content=request.message)]}
 
