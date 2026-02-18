@@ -172,12 +172,13 @@ function parseChatReport(text: string): AssessmentResult | null {
   const limit = limitMatch ? parseInt(limitMatch[1].replace(/[,. ]/g, "")) : undefined;
 
   // ── Reason ──
-  const lyDoMatch = text.match(/##\s*LÝ DO[^\n]*\n([\s\S]*?)(?=##|$)/);
+  // Match both old format (## LÝ DO) and current format (## Diễn giải chi tiết)
+  const lyDoMatch = text.match(/##\s*(?:LÝ DO|Diễn giải[^\n]*)\n([\s\S]*?)(?=##|$)/);
   const reason = lyDoMatch ? cleanMarkdown(lyDoMatch[1]) : "Xem chi tiết trong báo cáo.";
 
   // ── Recommendation ──
   let recommendation: string | undefined;
-  const recMatch = text.match(/##\s*ĐỀ XUẤT[^\n]*\n([\s\S]*?)(?=##|$)/);
+  const recMatch = text.match(/##\s*(?:ĐỀ XUẤT|Đề xuất|Gợi ý)[^\n]*\n([\s\S]*?)(?=##|$)/i);
   if (recMatch) {
     recommendation = cleanMarkdown(recMatch[1].replace(/^-\s*/gm, '• '));
   }

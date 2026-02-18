@@ -304,27 +304,29 @@ async def chat(request: ChatRequest):
             except (ValueError, TypeError):
                 pass
 
-        # 2. If requesting assessment, check for missing info
-        assessment_keywords = re.search(
-            r"thẩm định|đánh giá|xét duyệt|cho vay|vay vốn|duyệt vay",
-            request.message, re.IGNORECASE,
-        )
-        if assessment_keywords and id_match:
+        # 2. If CCCD found, check whether we have enough info to assess
+        if id_match:
+            assessment_keywords = bool(re.search(
+                r"thẩm định|đánh giá|xét duyệt|cho vay|vay vốn|duyệt vay",
+                request.message, re.IGNORECASE,
+            ))
             has_amount = bool(re.search(r"\d+\s*(?:tỷ|triệu|tr|VND|đồng|vnđ)", request.message, re.IGNORECASE))
             has_term = bool(re.search(r"\d+\s*tháng", request.message, re.IGNORECASE))
 
-            missing = []
-            if not has_amount:
-                missing.append("số tiền vay")
-            if not has_term:
-                missing.append("kỳ hạn vay (tháng)")
+            # If message is just a number or has keywords but missing info → guide user
+            if not has_amount or not has_term:
+                missing = []
+                if not has_amount:
+                    missing.append("số tiền vay")
+                if not has_term:
+                    missing.append("kỳ hạn vay (tháng)")
 
-            if missing:
                 return ChatResponse(
                     success=True,
                     thread_id=thread_id,
                     message=(
-                        f"Để thẩm định hồ sơ, vui lòng cung cấp thêm: **{', '.join(missing)}**.\n\n"
+                        f"Để thẩm định hồ sơ khách hàng ID {id_match.group(1)}, "
+                        f"vui lòng cung cấp thêm: **{', '.join(missing)}**.\n\n"
                         f"Ví dụ: *Thẩm định CCCD {id_match.group(1)}, vay 200 triệu, kỳ hạn 36 tháng*"
                     ),
                 )
