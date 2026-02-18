@@ -55,6 +55,7 @@ async def init_db(db_path: str = None):
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS assessments (
                         id SERIAL PRIMARY KEY,
+                        assessment_id TEXT NOT NULL,
                         thread_id TEXT NOT NULL,
                         customer_id TEXT NOT NULL,
                         customer_name TEXT DEFAULT '',
@@ -69,6 +70,10 @@ async def init_db(db_path: str = None):
                         needs_human_review INTEGER DEFAULT 0,
                         created_at TIMESTAMPTZ DEFAULT NOW()
                     )
+                """)
+                await conn.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_assessment_id
+                    ON assessments(assessment_id)
                 """)
                 await conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_assessments_created_at
@@ -89,6 +94,7 @@ async def init_db(db_path: str = None):
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS assessments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    assessment_id TEXT NOT NULL,
                     thread_id TEXT NOT NULL,
                     customer_id TEXT NOT NULL,
                     customer_name TEXT DEFAULT '',
@@ -103,6 +109,10 @@ async def init_db(db_path: str = None):
                     needs_human_review INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
+            """)
+            await db.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_assessment_id
+                ON assessments(assessment_id)
             """)
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_assessments_created_at
@@ -147,12 +157,13 @@ async def save_assessment(data: dict) -> int:
                 row = await conn.fetchrow(
                     """
                     INSERT INTO assessments
-                        (thread_id, customer_id, customer_name, loan_amount, term_months,
+                        (assessment_id, thread_id, customer_id, customer_name, loan_amount, term_months,
                          decision, cic_score, dti, approved_limit,
                          reasoning_trail, report, needs_human_review, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    RETURNING id
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    RETURNING id, assessment_id
                     """,
+                    str(data.get("assessment_id", "")),
                     str(data.get("thread_id", "")),
                     str(data.get("customer_id", "")),
                     str(data.get("customer_name", "")),
@@ -167,7 +178,7 @@ async def save_assessment(data: dict) -> int:
                     1 if data.get("needs_human_review") else 0,
                     created_at,
                 )
-                logger.info(f"Assessment saved to PostgreSQL, id={row['id']}")
+                logger.info(f"Assessment saved to PostgreSQL, id={row['id']}, assessment_id={row['assessment_id']}")
                 return row["id"]
         except Exception as e:
             logger.error(f"Failed to save assessment to PostgreSQL: {e}")
@@ -178,12 +189,13 @@ async def save_assessment(data: dict) -> int:
             cursor = await db.execute(
                 """
                 INSERT INTO assessments
-                    (thread_id, customer_id, customer_name, loan_amount, term_months,
+                    (assessment_id, thread_id, customer_id, customer_name, loan_amount, term_months,
                      decision, cic_score, dti, approved_limit,
                      reasoning_trail, report, needs_human_review, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
+                    data.get("assessment_id", ""),
                     data.get("thread_id", ""),
                     data.get("customer_id", ""),
                     data.get("customer_name", ""),
@@ -373,7 +385,7 @@ async def _list_pg(date_from, date_to, decision, search, page, page_size):
             offset = (page - 1) * page_size
             rows = await conn.fetch(
                 f"""
-                SELECT id, thread_id, customer_id, customer_name, loan_amount,
+                SELECT id, assessment_id, thread_id, customer_id, customer_name, loan_amount,
                        term_months, decision, cic_score, dti, approved_limit,
                        reasoning_trail, needs_human_review, created_at
                 FROM assessments
@@ -388,6 +400,7 @@ async def _list_pg(date_from, date_to, decision, search, page, page_size):
             for r in rows:
                 items.append({
                     "id": r["id"],
+                    "assessment_id": r["assessment_id"],
                     "thread_id": r["thread_id"],
                     "customer_id": r["customer_id"],
                     "customer_name": r["customer_name"],
@@ -442,7 +455,7 @@ async def _list_sqlite(date_from, date_to, decision, search, page, page_size):
         offset = (page - 1) * page_size
         cursor = await db.execute(
             f"""
-            SELECT id, thread_id, customer_id, customer_name, loan_amount,
+            SELECT id, assessment_id, thread_id, customer_id, customer_name, loan_amount,
                    term_months, decision, cic_score, dti, approved_limit,
                    reasoning_trail, needs_human_review, created_at
             FROM assessments
@@ -458,6 +471,7 @@ async def _list_sqlite(date_from, date_to, decision, search, page, page_size):
         for r in rows:
             items.append({
                 "id": r["id"],
+                "assessment_id": r["assessment_id"],
                 "thread_id": r["thread_id"],
                 "customer_id": r["customer_id"],
                 "customer_name": r["customer_name"],
@@ -503,6 +517,7 @@ async def _get_by_id_pg(assessment_id: int):
 
         return {
             "id": row["id"],
+            "assessment_id": row["assessment_id"],
             "thread_id": row["thread_id"],
             "customer_id": row["customer_id"],
             "customer_name": row["customer_name"],
@@ -532,6 +547,7 @@ async def _get_by_id_sqlite(assessment_id: int):
 
         return {
             "id": row["id"],
+            "assessment_id": row["assessment_id"],
             "thread_id": row["thread_id"],
             "customer_id": row["customer_id"],
             "customer_name": row["customer_name"],
@@ -549,28 +565,29 @@ async def _get_by_id_sqlite(assessment_id: int):
 
 
 # ════════════════════════════════════════════
-# GET BY THREAD ID
+# GET BY ASSESSMENT ID
 # ════════════════════════════════════════════
 
-async def get_assessment_by_thread_id(thread_id: str) -> Optional[dict]:
-    """Lấy 1 assessment theo thread_id (session ID)."""
+async def get_assessment_by_assessment_id(assessment_id: str) -> Optional[dict]:
+    """Lấy 1 assessment theo assessment_id (business transaction ID)."""
     if _USE_POSTGRES:
-        return await _get_by_thread_id_pg(thread_id)
+        return await _get_by_assessment_id_pg(assessment_id)
     else:
-        return await _get_by_thread_id_sqlite(thread_id)
+        return await _get_by_assessment_id_sqlite(assessment_id)
 
 
-async def _get_by_thread_id_pg(thread_id: str):
+async def _get_by_assessment_id_pg(assessment_id: str):
     pool = await _get_pg_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM assessments WHERE thread_id = $1", thread_id
+            "SELECT * FROM assessments WHERE assessment_id = $1", assessment_id
         )
         if not row:
             return None
 
         return {
             "id": row["id"],
+            "assessment_id": row["assessment_id"],
             "thread_id": row["thread_id"],
             "customer_id": row["customer_id"],
             "customer_name": row["customer_name"],
@@ -587,12 +604,12 @@ async def _get_by_thread_id_pg(thread_id: str):
         }
 
 
-async def _get_by_thread_id_sqlite(thread_id: str):
+async def _get_by_assessment_id_sqlite(assessment_id: str):
     import aiosqlite
     async with aiosqlite.connect(_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM assessments WHERE thread_id = ?", (thread_id,)
+            "SELECT * FROM assessments WHERE assessment_id = ?", (assessment_id,)
         )
         row = await cursor.fetchone()
         if not row:
@@ -600,6 +617,7 @@ async def _get_by_thread_id_sqlite(thread_id: str):
 
         return {
             "id": row["id"],
+            "assessment_id": row["assessment_id"],
             "thread_id": row["thread_id"],
             "customer_id": row["customer_id"],
             "customer_name": row["customer_name"],

@@ -101,21 +101,21 @@ function getTrailFromLocalStorage(): TrailData | null {
 
 export default function ReasoningTrailPage() {
     const [, setLocation] = useLocation();
-    const [, params] = useRoute("/trail/:threadId");
-    const threadId = params?.threadId;
+    const [, params] = useRoute("/trail/:assessmentId");
+    const assessmentId = params?.assessmentId;
 
     const [data, setData] = useState<TrailData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Back destination depends on how we got here
-    const backPath = threadId ? "/dashboard" : "/";
+    const backPath = assessmentId ? "/dashboard" : "/";
 
     useEffect(() => {
-        if (threadId) {
+        if (assessmentId) {
             // Mode 1: Fetch from API
             setLoading(true);
-            fetch(`${API_BASE}/dashboard/assessments/${threadId}`)
+            fetch(`${API_BASE}/dashboard/assessments/${assessmentId}`)
                 .then(res => res.json())
                 .then(json => {
                     if (json.success && json.data) {
@@ -123,7 +123,7 @@ export default function ReasoningTrailPage() {
                         setData({
                             customerName: d.customer_name || `KH #${d.customer_id}`,
                             decision: d.decision,
-                            threadId: d.thread_id,
+                            threadId: d.assessment_id,
                             timestamp: d.created_at,
                             trail: d.reasoning_trail || [],
                         });
@@ -137,7 +137,7 @@ export default function ReasoningTrailPage() {
             // Mode 2: Fallback to localStorage (from home page)
             setData(getTrailFromLocalStorage());
         }
-    }, [threadId]);
+    }, [assessmentId]);
 
     if (loading) {
         return (

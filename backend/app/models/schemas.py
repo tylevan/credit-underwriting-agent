@@ -34,6 +34,7 @@ class HumanReviewRequest(BaseModel):
 class AssessmentResponse(BaseModel):
     """Response thẩm định."""
     success: bool
+    assessment_id: Optional[str] = None
     thread_id: str
     decision: Optional[str] = None  # APPROVED / REVIEW / REJECTED
     report: Optional[str] = None
@@ -45,6 +46,7 @@ class AssessmentResponse(BaseModel):
 class ChatResponse(BaseModel):
     """Response chat."""
     success: bool
+    assessment_id: Optional[str] = None
     thread_id: str
     message: str
     reasoning_trail: list[dict] = []

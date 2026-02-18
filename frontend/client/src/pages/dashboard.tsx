@@ -40,6 +40,7 @@ interface Stats {
 
 interface AssessmentItem {
     id: number;
+    assessment_id: string;
     thread_id: string;
     customer_id: string;
     customer_name: string;
@@ -189,7 +190,7 @@ export default function Dashboard() {
     }, [fetchData]);
 
     const handleViewTrail = (item: AssessmentItem) => {
-        setLocation(`/trail/${item.thread_id}`);
+        setLocation(`/trail/${item.assessment_id}`);
     };
 
     const totalPages = Math.ceil(total / 10);
@@ -356,7 +357,7 @@ export default function Dashboard() {
                                                     <p className="text-sm text-slate-800 font-medium whitespace-nowrap">{formatDateTime(item.created_at)}</p>
                                                 </td>
                                                 <td className="px-5 py-4">
-                                                    <code className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">{shortSessionId(item.thread_id)}</code>
+                                                    <code className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">{shortSessionId(item.assessment_id)}</code>
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     <p className="text-sm text-slate-600">AI System</p>

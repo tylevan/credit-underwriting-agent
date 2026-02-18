@@ -20,6 +20,7 @@ export interface AssessmentRequest {
 
 export interface AssessmentResponse {
   success: boolean;
+  assessment_id: string | null;
   thread_id: string;
   decision: string | null;
   report: string | null;
@@ -39,6 +40,7 @@ export interface ReasoningStep {
 
 export interface ChatResponse {
   success: boolean;
+  assessment_id: string | null;
   thread_id: string;
   message: string;
   reasoning_trail?: ReasoningStep[];

@@ -84,6 +84,7 @@ async def health_check():
 @app.post("/api/v1/assess", response_model=AssessmentResponse)
 async def assess_credit(request: AssessmentRequest):
     thread_id = str(uuid.uuid4())
+    assessment_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
     # ═══════════════════════════════════════════════
@@ -152,6 +153,7 @@ async def assess_credit(request: AssessmentRequest):
         # Save to DB
         try:
             await assessment_repo.save_assessment({
+                "assessment_id": assessment_id,
                 "thread_id": thread_id,
                 "customer_id": request.customer_id,
                 "customer_name": "",
@@ -176,6 +178,7 @@ async def assess_credit(request: AssessmentRequest):
 
         return AssessmentResponse(
             success=True,
+            assessment_id=assessment_id,
             thread_id=thread_id,
             decision="REJECTED",
             report=report,
@@ -241,6 +244,7 @@ async def assess_credit(request: AssessmentRequest):
         # ── Save to DB ──
         try:
             await assessment_repo.save_assessment({
+                "assessment_id": assessment_id,
                 "thread_id": thread_id,
                 "customer_id": request.customer_id,
                 "customer_name": customer_name,
@@ -259,6 +263,7 @@ async def assess_credit(request: AssessmentRequest):
 
         logger.info("assessment_completed", extra={
             "thread_id": thread_id,
+            "assessment_id": assessment_id,
             "customer_id": request.customer_id,
             "decision": final_decision,
             "needs_review": needs_review,
@@ -266,6 +271,7 @@ async def assess_credit(request: AssessmentRequest):
 
         return AssessmentResponse(
             success=True,
+            assessment_id=assessment_id,
             thread_id=thread_id,
             decision=final_decision,
             report=final_content,
@@ -350,6 +356,7 @@ async def chat(request: ChatRequest):
         new_trail = reasoning_trail[trail_offset:]
 
         # If a REAL assessment was performed (has trail AND final_decision), save to DB
+        chat_assessment_id = None
         if new_trail:
             final_state = credit_agent.get_state(config)
             final_decision = final_state.values.get("final_decision")
@@ -357,6 +364,7 @@ async def chat(request: ChatRequest):
 
             # Only save when agent reached a final decision (not just a lookup)
             if final_decision:
+                chat_assessment_id = str(uuid.uuid4())
                 # Extract structured data from trail (same logic as /assess)
                 customer_name = ""
                 customer_id = ""
@@ -370,10 +378,10 @@ async def chat(request: ChatRequest):
                     if step.get("step") == 1:
                         name_match = re.match(r"^([^,]+),", step.get("result", ""))
                         customer_name = name_match.group(1) if name_match else ""
-                        id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("detail", ""))
-                        if not id_match:
-                            id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("result", ""))
-                        customer_id = id_match.group(1) if id_match else ""
+                        id_match2 = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("detail", ""))
+                        if not id_match2:
+                            id_match2 = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("result", ""))
+                        customer_id = id_match2.group(1) if id_match2 else ""
                     elif step.get("step") == 2:
                         cic_match = re.search(r"CIC\s*=?\s*(\d+)", step.get("result", ""))
                         cic_score = int(cic_match.group(1)) if cic_match else None
@@ -407,6 +415,7 @@ async def chat(request: ChatRequest):
 
                 try:
                     await assessment_repo.save_assessment({
+                        "assessment_id": chat_assessment_id,
                         "thread_id": thread_id,
                         "customer_id": customer_id,
                         "customer_name": customer_name,
@@ -425,6 +434,7 @@ async def chat(request: ChatRequest):
 
         return ChatResponse(
             success=True,
+            assessment_id=chat_assessment_id,
             thread_id=thread_id,
             message=final_content,
             reasoning_trail=new_trail,
@@ -573,12 +583,12 @@ async def dashboard_assessments(
 @app.get("/api/v1/dashboard/assessments/{assessment_id}")
 async def get_assessment_detail(assessment_id: str):
     """Chi tiết 1 assessment (bao gồm reasoning trail).
-    Hỗ trợ tra cứu theo DB id (số) hoặc thread_id (chuỗi UUID).
+    Hỗ trợ tra cứu theo DB id (số) hoặc assessment_id (UUID).
     """
     if assessment_id.isdigit():
         result = await assessment_repo.get_assessment_by_id(int(assessment_id))
     else:
-        result = await assessment_repo.get_assessment_by_thread_id(assessment_id)
+        result = await assessment_repo.get_assessment_by_assessment_id(assessment_id)
     if not result:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return {"success": True, "data": result}

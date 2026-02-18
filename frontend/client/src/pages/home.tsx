@@ -248,7 +248,7 @@ export default function Home() {
         localStorage.setItem("reasoning_trail", JSON.stringify({
           customerName: resultData.customerName,
           decision: response.decision || resultData.status,
-          threadId: response.thread_id,
+          threadId: response.assessment_id || response.thread_id,
           timestamp: new Date().toISOString(),
           trail: response.reasoning_trail || [],
         }));
@@ -279,7 +279,7 @@ export default function Home() {
           setMessages(prev => [...prev, {
             id: (Date.now() + 4).toString(),
             role: "system",
-            content: `⚠️ CẦN XEM XÉT: Hồ sơ này cần được duyệt bởi chuyên viên cấp cao. Thread ID: ${response.thread_id}`,
+            content: `⚠️ CẦN XEM XÉT: Hồ sơ này cần được duyệt bởi chuyên viên cấp cao. Mã hồ sơ: ${response.assessment_id || response.thread_id}`,
             timestamp: new Date()
           }]);
         }
