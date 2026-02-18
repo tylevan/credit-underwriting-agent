@@ -276,6 +276,22 @@ async def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
+        # ── Pre-validation: detect customer ID and check existence early ──
+        id_match = re.search(r"(?:CCCD|cccd|ID|id)\s*[:\s]*(\d{4,})", request.message)
+        if not id_match:
+            id_match = re.search(r"\b(\d{4,})\b", request.message)
+        if id_match:
+            try:
+                cust = get_customer_by_id(int(id_match.group(1)))
+                if cust is None:
+                    return ChatResponse(
+                        success=True,
+                        thread_id=thread_id,
+                        message=f"Khách hàng ID {id_match.group(1)} không tồn tại trong hệ thống. Vui lòng kiểm tra lại số CCCD.",
+                    )
+            except (ValueError, TypeError):
+                pass
+
         inputs = {"messages": [HumanMessage(content=request.message)]}
 
         # Capture existing trail length to only return NEW steps from this message
@@ -294,69 +310,79 @@ async def chat(request: ChatRequest):
         # Only return trail steps added during THIS chat message
         new_trail = reasoning_trail[trail_offset:]
 
-        # If assessment was performed (has trail steps), save to DB for dashboard
+        # If a REAL assessment was performed (has trail AND final_decision), save to DB
         if new_trail:
             final_state = credit_agent.get_state(config)
             final_decision = final_state.values.get("final_decision")
             needs_review = final_state.values.get("needs_human_review", False)
 
-            # Extract structured data from trail (same logic as /assess)
-            customer_name = ""
-            customer_id = ""
-            cic_score = None
-            dti_value = None
-            approved_limit = None
-            loan_amount = 0.0
-            term_months = 0
+            # Only save when agent reached a final decision (not just a lookup)
+            if final_decision:
+                # Extract structured data from trail (same logic as /assess)
+                customer_name = ""
+                customer_id = ""
+                cic_score = None
+                dti_value = None
+                approved_limit = None
+                loan_amount = 0.0
+                term_months = 0
 
-            for step in new_trail:
-                if step.get("step") == 1:
-                    name_match = re.match(r"^([^,]+),", step.get("result", ""))
-                    customer_name = name_match.group(1) if name_match else ""
-                    id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("detail", ""))
-                    if not id_match:
-                        id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("result", ""))
-                    customer_id = id_match.group(1) if id_match else ""
-                elif step.get("step") == 2:
-                    cic_match = re.search(r"CIC\s*=?\s*(\d+)", step.get("result", ""))
-                    cic_score = int(cic_match.group(1)) if cic_match else None
-                elif step.get("step") == 4:
-                    dti_match = re.search(r"([\d.]+)%", step.get("result", ""))
-                    dti_value = float(dti_match.group(1)) if dti_match else None
-                elif step.get("step") in (5, 6):
-                    limit_match = re.search(r"([\d,]+)\s*VND", step.get("result", ""))
-                    if limit_match:
-                        approved_limit = float(limit_match.group(1).replace(",", ""))
+                for step in new_trail:
+                    if step.get("step") == 1:
+                        name_match = re.match(r"^([^,]+),", step.get("result", ""))
+                        customer_name = name_match.group(1) if name_match else ""
+                        id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("detail", ""))
+                        if not id_match:
+                            id_match = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("result", ""))
+                        customer_id = id_match.group(1) if id_match else ""
+                    elif step.get("step") == 2:
+                        cic_match = re.search(r"CIC\s*=?\s*(\d+)", step.get("result", ""))
+                        cic_score = int(cic_match.group(1)) if cic_match else None
+                    elif step.get("step") == 4:
+                        dti_match = re.search(r"([\d.]+)%", step.get("result", ""))
+                        dti_value = float(dti_match.group(1)) if dti_match else None
+                    elif step.get("step") in (5, 6):
+                        limit_match = re.search(r"([\d,]+)\s*VND", step.get("result", ""))
+                        if limit_match:
+                            approved_limit = float(limit_match.group(1).replace(",", ""))
 
-            # Extract loan info from message
-            amount_match = re.search(r"([\d,.]+)\s*(?:VND|triệu|tỷ)", request.message, re.IGNORECASE)
-            if amount_match:
-                raw = amount_match.group(1).replace(",", "").replace(".", "")
+                # Extract loan info from message — handle triệu/tỷ/tr multipliers
+                amount_match = re.search(
+                    r"([\d,.]+)\s*(?:tỷ|triệu|tr(?:iệu)?|VND)",
+                    request.message, re.IGNORECASE,
+                )
+                if amount_match:
+                    raw = amount_match.group(1).replace(",", "")
+                    unit = amount_match.group(0).lower()
+                    try:
+                        loan_amount = float(raw)
+                        if "tỷ" in unit:
+                            loan_amount *= 1_000_000_000
+                        elif "tr" in unit or "triệu" in unit:
+                            loan_amount *= 1_000_000
+                    except ValueError:
+                        pass
+                term_match = re.search(r"(\d+)\s*tháng", request.message)
+                if term_match:
+                    term_months = int(term_match.group(1))
+
                 try:
-                    loan_amount = float(raw)
-                except ValueError:
-                    pass
-            term_match = re.search(r"(\d+)\s*tháng", request.message)
-            if term_match:
-                term_months = int(term_match.group(1))
-
-            try:
-                await assessment_repo.save_assessment({
-                    "thread_id": thread_id,
-                    "customer_id": customer_id,
-                    "customer_name": customer_name,
-                    "loan_amount": loan_amount,
-                    "term_months": term_months,
-                    "decision": final_decision,
-                    "cic_score": cic_score,
-                    "dti": dti_value,
-                    "approved_limit": approved_limit,
-                    "reasoning_trail": new_trail,
-                    "report": final_content,
-                    "needs_human_review": needs_review,
-                })
-            except Exception as db_err:
-                logger.warning(f"Failed to save chat assessment to DB: {db_err}")
+                    await assessment_repo.save_assessment({
+                        "thread_id": thread_id,
+                        "customer_id": customer_id,
+                        "customer_name": customer_name,
+                        "loan_amount": loan_amount,
+                        "term_months": term_months,
+                        "decision": final_decision,
+                        "cic_score": cic_score,
+                        "dti": dti_value,
+                        "approved_limit": approved_limit,
+                        "reasoning_trail": new_trail,
+                        "report": final_content,
+                        "needs_human_review": needs_review,
+                    })
+                except Exception as db_err:
+                    logger.warning(f"Failed to save chat assessment to DB: {db_err}")
 
         return ChatResponse(
             success=True,
