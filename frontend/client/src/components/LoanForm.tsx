@@ -98,7 +98,7 @@ export function LoanForm({ onSubmit, isLoading }: LoanFormProps) {
                 value={[formData.term]}
                 min={6}
                 max={60}
-                step={6}
+                step={3}
                 onValueChange={([val]) => setFormData({ ...formData, term: val })}
                 className="py-2"
               />

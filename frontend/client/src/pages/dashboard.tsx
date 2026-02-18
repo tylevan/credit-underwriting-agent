@@ -189,14 +189,7 @@ export default function Dashboard() {
     }, [fetchData]);
 
     const handleViewTrail = (item: AssessmentItem) => {
-        localStorage.setItem("reasoning_trail", JSON.stringify({
-            customerName: item.customer_name || `KH #${item.customer_id}`,
-            decision: item.decision,
-            threadId: item.thread_id,
-            timestamp: item.created_at,
-            trail: item.reasoning_trail,
-        }));
-        setLocation("/trail");
+        setLocation(`/trail/${item.thread_id}`);
     };
 
     const totalPages = Math.ceil(total / 10);

@@ -423,9 +423,15 @@ async def dashboard_assessments(
 
 
 @app.get("/api/v1/dashboard/assessments/{assessment_id}")
-async def get_assessment_detail(assessment_id: int):
-    """Chi tiết 1 assessment (bao gồm reasoning trail)."""
-    result = await assessment_repo.get_assessment_by_id(assessment_id)
+async def get_assessment_detail(assessment_id: str):
+    """Chi tiết 1 assessment (bao gồm reasoning trail).
+    Hỗ trợ tra cứu theo DB id (số) hoặc thread_id (chuỗi UUID).
+    """
+    if assessment_id.isdigit():
+        result = await assessment_repo.get_assessment_by_id(int(assessment_id))
+    else:
+        result = await assessment_repo.get_assessment_by_thread_id(assessment_id)
     if not result:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return {"success": True, "data": result}
+

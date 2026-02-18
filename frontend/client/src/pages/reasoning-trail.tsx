@@ -1,9 +1,14 @@
 /**
  * Reasoning Trail Page
  * Hiển thị chi tiết từng bước thẩm định dạng timeline.
+ *
+ * Hai chế độ:
+ *   /trail/:threadId  → fetch từ API (dashboard), back → /dashboard
+ *   /trail            → đọc localStorage (home), back → /
  */
-import { useLocation } from "wouter";
-import { type ReasoningStep } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { useLocation, useRoute } from "wouter";
+import { type ReasoningStep, API_BASE } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +22,7 @@ import {
     XCircle,
     AlertTriangle,
     Info,
+    Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +81,7 @@ function getStepMeta(step: ReasoningStep) {
     return { stepIcon, ...meta };
 }
 
-/* ── Trail data from localStorage ── */
+/* ── Trail data interface ── */
 export interface TrailData {
     customerName: string;
     decision: string;
@@ -84,7 +90,7 @@ export interface TrailData {
     trail: ReasoningStep[];
 }
 
-function getTrailData(): TrailData | null {
+function getTrailFromLocalStorage(): TrailData | null {
     try {
         const raw = localStorage.getItem("reasoning_trail");
         return raw ? JSON.parse(raw) : null;
@@ -95,18 +101,62 @@ function getTrailData(): TrailData | null {
 
 export default function ReasoningTrailPage() {
     const [, setLocation] = useLocation();
-    const data = getTrailData();
+    const [, params] = useRoute("/trail/:threadId");
+    const threadId = params?.threadId;
 
-    if (!data || !data.trail.length) {
+    const [data, setData] = useState<TrailData | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Back destination depends on how we got here
+    const backPath = threadId ? "/dashboard" : "/";
+
+    useEffect(() => {
+        if (threadId) {
+            // Mode 1: Fetch from API
+            setLoading(true);
+            fetch(`${API_BASE}/dashboard/assessments/${threadId}`)
+                .then(res => res.json())
+                .then(json => {
+                    if (json.success && json.data) {
+                        const d = json.data;
+                        setData({
+                            customerName: d.customer_name || `KH #${d.customer_id}`,
+                            decision: d.decision,
+                            threadId: d.thread_id,
+                            timestamp: d.created_at,
+                            trail: d.reasoning_trail || [],
+                        });
+                    } else {
+                        setError("Không tìm thấy hồ sơ.");
+                    }
+                })
+                .catch(() => setError("Không thể kết nối tới server."))
+                .finally(() => setLoading(false));
+        } else {
+            // Mode 2: Fallback to localStorage (from home page)
+            setData(getTrailFromLocalStorage());
+        }
+    }, [threadId]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+                <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+            </div>
+        );
+    }
+
+    if (error || !data || !data.trail.length) {
         return (
             <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
                 <Card className="p-8 text-center max-w-md">
                     <div className="text-6xl mb-4">📋</div>
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">Chưa có dữ liệu thẩm định</h2>
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">{error || "Chưa có dữ liệu thẩm định"}</h2>
                     <p className="text-sm text-slate-500 mb-6">
                         Hãy thực hiện thẩm định một hồ sơ trước, sau đó quay lại đây để xem chi tiết quá trình.
                     </p>
-                    <Button onClick={() => setLocation("/")} variant="outline">
+                    <Button onClick={() => setLocation(backPath)} variant="outline">
                         <ArrowLeft className="w-4 h-4 mr-2" /> Quay lại
                     </Button>
                 </Card>
@@ -127,7 +177,7 @@ export default function ReasoningTrailPage() {
                 <div className="max-w-3xl mx-auto px-6 py-6">
                     <div className="flex items-center gap-3 mb-4">
                         <button
-                            onClick={() => setLocation("/")}
+                            onClick={() => setLocation(backPath)}
                             className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />

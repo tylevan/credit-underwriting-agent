@@ -546,3 +546,71 @@ async def _get_by_id_sqlite(assessment_id: int):
             "needs_human_review": bool(row["needs_human_review"]),
             "created_at": row["created_at"],
         }
+
+
+# ════════════════════════════════════════════
+# GET BY THREAD ID
+# ════════════════════════════════════════════
+
+async def get_assessment_by_thread_id(thread_id: str) -> Optional[dict]:
+    """Lấy 1 assessment theo thread_id (session ID)."""
+    if _USE_POSTGRES:
+        return await _get_by_thread_id_pg(thread_id)
+    else:
+        return await _get_by_thread_id_sqlite(thread_id)
+
+
+async def _get_by_thread_id_pg(thread_id: str):
+    pool = await _get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM assessments WHERE thread_id = $1", thread_id
+        )
+        if not row:
+            return None
+
+        return {
+            "id": row["id"],
+            "thread_id": row["thread_id"],
+            "customer_id": row["customer_id"],
+            "customer_name": row["customer_name"],
+            "loan_amount": row["loan_amount"],
+            "term_months": row["term_months"],
+            "decision": row["decision"],
+            "cic_score": row["cic_score"],
+            "dti": row["dti"],
+            "approved_limit": row["approved_limit"],
+            "reasoning_trail": json.loads(row["reasoning_trail"] or "[]"),
+            "report": row["report"],
+            "needs_human_review": bool(row["needs_human_review"]),
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+        }
+
+
+async def _get_by_thread_id_sqlite(thread_id: str):
+    import aiosqlite
+    async with aiosqlite.connect(_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM assessments WHERE thread_id = ?", (thread_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+
+        return {
+            "id": row["id"],
+            "thread_id": row["thread_id"],
+            "customer_id": row["customer_id"],
+            "customer_name": row["customer_name"],
+            "loan_amount": row["loan_amount"],
+            "term_months": row["term_months"],
+            "decision": row["decision"],
+            "cic_score": row["cic_score"],
+            "dti": row["dti"],
+            "approved_limit": row["approved_limit"],
+            "reasoning_trail": json.loads(row["reasoning_trail"] or "[]"),
+            "report": row["report"],
+            "needs_human_review": bool(row["needs_human_review"]),
+            "created_at": row["created_at"],
+        }

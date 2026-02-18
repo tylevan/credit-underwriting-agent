@@ -340,7 +340,7 @@ export default function Home() {
         const cardData = parseChatReport(response.message);
 
         if (cardData) {
-          // Assessment result detected → show short summary + card
+          // Assessment result detected → show short summary + card + trail link
           const statusLabel = cardData.status === "APPROVED" ? "Phê duyệt"
             : cardData.status === "REJECTED" ? "Từ chối" : "Cần xem xét";
 
@@ -351,6 +351,17 @@ export default function Home() {
             cardData,
             timestamp: new Date()
           }]);
+
+          // Trail button — only if threadId available
+          const currentThreadId = response.thread_id || threadId;
+          if (currentThreadId) {
+            setMessages(prev => [...prev, {
+              id: (Date.now() + 2).toString(),
+              role: "system",
+              content: `📊 [Xem luồng quyết định](/trail/${currentThreadId})`,
+              timestamp: new Date()
+            }]);
+          }
         } else {
           // Normal chat message
           setMessages(prev => [...prev, {
