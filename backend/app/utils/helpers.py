@@ -7,8 +7,6 @@ import re
 # Framework keywords nội bộ — KHÔNG BAO GIỜ xuất hiện trong output cho user
 INTERNAL_KEYWORDS = [
     "system prompt",
-    "scratchpad",
-    "reasoning_trail",
     "bind_tools",
     "langchain",
     "langgraph",
