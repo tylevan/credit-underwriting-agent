@@ -292,51 +292,6 @@ async def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        # ── Pre-validation: CCCD existence + missing info ──
-        id_match = re.search(r"(?:CCCD|cccd|ID|id)\s*[:\s]*(\d{4,})", request.message)
-        if not id_match:
-            id_match = re.search(r"\b(\d{4,})\b", request.message)
-
-        # 1. CCCD check — reject immediately if not found
-        if id_match:
-            try:
-                cust = get_customer_by_id(int(id_match.group(1)))
-                if cust is None:
-                    return ChatResponse(
-                        success=True,
-                        thread_id=thread_id,
-                        message=f"Khách hàng ID {id_match.group(1)} không tồn tại trong hệ thống. Vui lòng kiểm tra lại số CCCD.",
-                    )
-            except (ValueError, TypeError):
-                pass
-
-        # 2. If CCCD found AND message looks like an assessment request, check for missing info
-        if id_match:
-            assessment_keywords = bool(re.search(
-                r"thẩm định|đánh giá|xét duyệt|cho vay|vay vốn|duyệt vay",
-                request.message, re.IGNORECASE,
-            ))
-            has_amount = bool(re.search(r"\d+\s*(?:tỷ|triệu|tr|VND|đồng|vnđ)", request.message, re.IGNORECASE))
-            has_term = bool(re.search(r"\d+\s*tháng", request.message, re.IGNORECASE))
-
-            # Only guide user when they EXPLICITLY want an assessment but missing info
-            if assessment_keywords and (not has_amount or not has_term):
-                missing = []
-                if not has_amount:
-                    missing.append("số tiền vay")
-                if not has_term:
-                    missing.append("kỳ hạn vay (tháng)")
-
-                return ChatResponse(
-                    success=True,
-                    thread_id=thread_id,
-                    message=(
-                        f"Để thẩm định hồ sơ khách hàng ID {id_match.group(1)}, "
-                        f"vui lòng cung cấp thêm: **{', '.join(missing)}**.\n\n"
-                        f"Ví dụ: *Thẩm định CCCD {id_match.group(1)}, vay 200 triệu, kỳ hạn 36 tháng*"
-                    ),
-                )
-
         inputs = {"messages": [HumanMessage(content=request.message)]}
 
         final_content = ""
