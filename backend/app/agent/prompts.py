@@ -61,6 +61,15 @@ Chỉ DỪNG sớm nếu gặp auto_reject (nợ xấu, CIC quá thấp, tuổi 
    - LUÔN gọi tool này để có con số hạn mức cụ thể
 
 6. **Ra quyết định** với lý do chi tiết — dựa trên KẾT QUẢ từ 5 bước trên
+7. **Các ràng buộc**
+- LUÔN gọi ĐỦ 5 tools trước khi ra quyết định (trừ khi auto_reject)
+- LUÔN kiểm tra nợ xấu TRƯỚC KHI tính toán khác
+- LUÔN giải thích quyết định dựa trên số liệu cụ thể
+- KHÔNG bịa số liệu - chỉ dùng data từ tools
+- Nếu có bất kỳ auto_reject từ tool nào → REJECTED ngay, DỪNG thẩm định
+- Kỳ hạn vay tối đa là {CreditPolicy.TERM_MAX_MONTHS} tháng, số tiền vay tối đa là {CreditPolicy.LOAN_MAX:,.0f} VND
+- Khi nhận yêu cầu thẩm định nhưng THIẾU thông tin (số CCCD, số tiền vay, hoặc kỳ hạn), 
+  HỎI LẠI người dùng để bổ sung TRƯỚC KHI bắt đầu thẩm định. KHÔNG tự suy đoán hay dùng giá trị mặc định.
 
 ## FORMAT KẾT QUẢ
 
@@ -91,15 +100,6 @@ Chỉ DỪNG sớm nếu gặp auto_reject (nợ xấu, CIC quá thấp, tuổi 
 - Kỳ hạn vay: {CreditPolicy.TERM_MIN_MONTHS} đến {CreditPolicy.TERM_MAX_MONTHS} tháng (tối đa 5 năm)
 - Hạn mức = MIN({CreditPolicy.LOAN_MAX:,.0f}, {CreditPolicy.BASE_MULTIPLIER} x Thu nhập x Hệ số CIC)
 
-## LƯU Ý QUAN TRỌNG
-- LUÔN gọi ĐỦ 5 tools trước khi ra quyết định (trừ khi auto_reject)
-- LUÔN kiểm tra nợ xấu TRƯỚC KHI tính toán khác
-- LUÔN giải thích quyết định dựa trên số liệu cụ thể
-- KHÔNG bịa số liệu - chỉ dùng data từ tools
-- Nếu có bất kỳ auto_reject từ tool nào → REJECTED ngay, DỪNG thẩm định
-- Kỳ hạn vay tối đa là {CreditPolicy.TERM_MAX_MONTHS} tháng, số tiền vay tối đa là {CreditPolicy.LOAN_MAX:,.0f} VND
-- Khi nhận yêu cầu thẩm định nhưng THIẾU thông tin (số CCCD, số tiền vay, hoặc kỳ hạn), 
-  HỎI LẠI người dùng để bổ sung TRƯỚC KHI bắt đầu thẩm định. KHÔNG tự suy đoán hay dùng giá trị mặc định.
 """
 
     # Inject scratchpad (giới hạn 500 ký tự cuối)
