@@ -4,14 +4,8 @@ Utility functions.
 
 import re
 
-# Tool names và keywords nội bộ — KHÔNG BAO GIỜ xuất hiện trong output cho user
+# Framework keywords nội bộ — KHÔNG BAO GIỜ xuất hiện trong output cho user
 INTERNAL_KEYWORDS = [
-    "get_customer_info",
-    "get_cic_report",
-    "calculate_monthly_payment",
-    "calculate_dti",
-    "calculate_max_loan",
-    "get_credit_policy",
     "system prompt",
     "scratchpad",
     "reasoning_trail",
@@ -27,6 +21,22 @@ _LEAK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Tool code names → tên hiển thị tự nhiên cho user
+TOOL_DISPLAY_NAMES = {
+    "get_customer_info": "tra cứu thông tin khách hàng",
+    "get_cic_report": "tra cứu báo cáo tín dụng CIC",
+    "calculate_monthly_payment": "tính tiền trả hàng tháng",
+    "calculate_dti": "tính tỷ lệ nợ trên thu nhập",
+    "calculate_max_loan": "tính hạn mức vay tối đa",
+    "get_credit_policy": "tra cứu chính sách tín dụng",
+}
+
+# Compile tool name replacement pattern
+_TOOL_NAME_PATTERN = re.compile(
+    "|".join(re.escape(name) for name in TOOL_DISPLAY_NAMES),
+    re.IGNORECASE,
+)
+
 DEFLECTION_MESSAGE = (
     "Tôi là chuyên viên thẩm định tín dụng. "
     "Tôi chỉ hỗ trợ các nghiệp vụ liên quan đến thẩm định và cho vay tín dụng. "
@@ -36,9 +46,16 @@ DEFLECTION_MESSAGE = (
 
 def sanitize_output(content: str) -> str:
     """
-    Output guardrail: phát hiện và chặn response chứa thông tin nội bộ.
-    Nếu LLM tiết lộ tên tool/hệ thống → thay toàn bộ bằng câu từ chối.
+    Output guardrail:
+    1. Thay tên tool code bằng tên tự nhiên (VD: get_customer_info → tra cứu thông tin khách hàng)
+    2. Nếu vẫn chứa framework keywords nội bộ → chặn toàn bộ
     """
+    # Step 1: Replace tool names with natural language
+    content = _TOOL_NAME_PATTERN.sub(
+        lambda m: TOOL_DISPLAY_NAMES.get(m.group(0).lower(), m.group(0)),
+        content,
+    )
+    # Step 2: Block if framework keywords leaked
     if _LEAK_PATTERN.search(content):
         return DEFLECTION_MESSAGE
     return content
