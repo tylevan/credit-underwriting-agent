@@ -345,6 +345,15 @@ export default function Home() {
           // Attach reasoning trail from response (same as LoanForm)
           if (response.reasoning_trail?.length) {
             cardData.reasoningTrail = response.reasoning_trail;
+
+            // Save reasoning trail to localStorage for /trail page
+            localStorage.setItem("reasoning_trail", JSON.stringify({
+              customerName: cardData.customerName,
+              decision: cardData.status,
+              threadId: response.assessment_id || response.thread_id,
+              timestamp: new Date().toISOString(),
+              trail: response.reasoning_trail,
+            }));
           }
 
           const statusLabel = cardData.status === "APPROVED" ? "Phê duyệt"
