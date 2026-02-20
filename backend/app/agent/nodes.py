@@ -13,7 +13,7 @@ import json
 import logging
 from datetime import datetime
 
-from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
+from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .state import AgentState
@@ -135,10 +135,16 @@ def update_scratchpad(state: AgentState) -> dict:
     # Track existing steps to prevent duplicates
     existing_steps = {(r.get("step"), r.get("action")) for r in reasoning_trail}
 
-    # Chỉ xử lý messages mới nhất (tool results)
-    last_messages = state["messages"][-5:]
+    # Only process messages after the last HumanMessage (= current assessment scope)
+    # This prevents re-adding old tool steps when trail was reset between assessments
+    all_msgs = state["messages"]
+    last_human_idx = 0
+    for i, m in enumerate(all_msgs):
+        if isinstance(m, HumanMessage):
+            last_human_idx = i
+    recent_messages = all_msgs[last_human_idx:]
 
-    for msg in last_messages:
+    for msg in recent_messages:
         if not isinstance(msg, ToolMessage):
             continue
 
