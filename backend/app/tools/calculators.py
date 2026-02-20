@@ -25,6 +25,21 @@ def calculate_monthly_payment(loan_amount: float, annual_rate: float, term_month
     Tính số tiền trả hàng tháng theo phương pháp dư nợ giảm dần.
     Trả về: monthly_payment, total_payment, total_interest.
     """
+    # Validate kỳ hạn vay
+    if term_months < CreditPolicy.TERM_MIN_MONTHS or term_months > CreditPolicy.TERM_MAX_MONTHS:
+        return {
+            "success": False,
+            "error": f"Kỳ hạn vay phải từ {CreditPolicy.TERM_MIN_MONTHS} đến {CreditPolicy.TERM_MAX_MONTHS} tháng",
+            "reasoning_step": {
+                "step": 3,
+                "action": "Tính tiền trả hàng tháng",
+                "result": f"KỲ HẠN KHÔNG HỢP LỆ: {term_months} tháng",
+                "policy_ref": f"Kỳ hạn: {CreditPolicy.TERM_MIN_MONTHS}-{CreditPolicy.TERM_MAX_MONTHS} tháng",
+                "decision": "FAIL",
+                "detail": f"Kỳ hạn {term_months} tháng nằm ngoài phạm vi cho phép ({CreditPolicy.TERM_MIN_MONTHS}-{CreditPolicy.TERM_MAX_MONTHS} tháng)"
+            }
+        }
+
     if loan_amount <= 0 or annual_rate <= 0 or term_months <= 0:
         return {
             "success": False,

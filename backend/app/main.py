@@ -3,6 +3,7 @@ FastAPI Application: Credit Underwriting Agent API.
 """
 
 import uuid
+import json
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ from datetime import date, datetime
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 from .config.settings import settings
 from .config.policy_constants import CreditPolicy
@@ -311,7 +312,8 @@ async def chat(request: ChatRequest):
         chat_assessment_id = None
         if final_decision and full_trail:
             chat_assessment_id = str(uuid.uuid4())
-            # Extract structured data from trail (same logic as /assess)
+
+            # Extract structured data from ToolMessage results in state
             customer_name = ""
             customer_id = ""
             cic_score = None
@@ -320,44 +322,31 @@ async def chat(request: ChatRequest):
             loan_amount = 0.0
             term_months = 0
 
-            for step in full_trail:
-                if step.get("step") == 1:
-                    name_match = re.match(r"^([^,]+),", step.get("result", ""))
-                    customer_name = name_match.group(1) if name_match else ""
-                    id_match2 = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("detail", ""))
-                    if not id_match2:
-                        id_match2 = re.search(r"ID\s*[=:]?\s*(\d+)", step.get("result", ""))
-                    customer_id = id_match2.group(1) if id_match2 else ""
-                elif step.get("step") == 2:
-                    cic_match = re.search(r"CIC\s*=?\s*(\d+)", step.get("result", ""))
-                    cic_score = int(cic_match.group(1)) if cic_match else None
-                elif step.get("step") == 4:
-                    dti_match = re.search(r"([\d.]+)%", step.get("result", ""))
-                    dti_value = float(dti_match.group(1)) if dti_match else None
-                elif step.get("step") in (5, 6):
-                    limit_match = re.search(r"([\d,]+)\s*VND", step.get("result", ""))
-                    if limit_match:
-                        approved_limit = float(limit_match.group(1).replace(",", ""))
-
-            # Extract loan info from message — handle triệu/tỷ/tr multipliers
-            amount_match = re.search(
-                r"([\d,.]+)\s*(?:tỷ|triệu|tr(?:iệu)?|VND)",
-                request.message, re.IGNORECASE,
-            )
-            if amount_match:
-                raw = amount_match.group(1).replace(",", "")
-                unit = amount_match.group(0).lower()
+            all_messages = final_state.values.get("messages", []) if final_state.values else []
+            for msg in all_messages:
+                if not isinstance(msg, ToolMessage):
+                    continue
                 try:
-                    loan_amount = float(raw)
-                    if "tỷ" in unit:
-                        loan_amount *= 1_000_000_000
-                    elif "tr" in unit or "triệu" in unit:
-                        loan_amount *= 1_000_000
-                except ValueError:
-                    pass
-            term_match = re.search(r"(\d+)\s*tháng", request.message)
-            if term_match:
-                term_months = int(term_match.group(1))
+                    result = json.loads(msg.content)
+                except (json.JSONDecodeError, AttributeError):
+                    continue
+                if not isinstance(result, dict) or not result.get("success"):
+                    continue
+
+                data = result.get("data", {})
+
+                if msg.name == "get_customer_info":
+                    customer_name = data.get("full_name", "")
+                    customer_id = str(data.get("customer_id", ""))
+                elif msg.name == "get_cic_report":
+                    cic_score = data.get("credit_sco")
+                elif msg.name == "calculate_monthly_payment":
+                    loan_amount = data.get("loan_amount", 0)
+                    term_months = data.get("term_months", 0)
+                elif msg.name == "calculate_dti":
+                    dti_value = data.get("dti_percent")
+                elif msg.name == "calculate_max_loan":
+                    approved_limit = data.get("final_approved_limit")
 
             try:
                 await assessment_repo.save_assessment({
@@ -378,9 +367,13 @@ async def chat(request: ChatRequest):
             except Exception as db_err:
                 logger.warning(f"Failed to save chat assessment to DB: {db_err}")
 
-            # Reset final_decision to prevent duplicate saves on subsequent messages
+            # Reset state to prevent overwrite on subsequent assessments in same thread
             try:
-                credit_agent.update_state(config, {"final_decision": None})
+                credit_agent.update_state(config, {
+                    "final_decision": None,
+                    "reasoning_trail": [],
+                    "scratchpad": "",
+                })
             except Exception:
                 pass
 

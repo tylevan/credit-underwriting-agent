@@ -13,7 +13,7 @@ class AssessmentRequest(BaseModel):
     """Request thẩm định tín dụng."""
     customer_id: str = Field(..., description="ID khách hàng")
     loan_amount: float = Field(..., gt=0, le=1_200_000_000, description="Số tiền vay (VND), tối đa 1.2 tỷ")
-    term_months: int = Field(..., gt=0, le=60, description="Kỳ hạn vay (tháng), tối đa 60 tháng")
+    term_months: int = Field(..., ge=6, le=60, description="Kỳ hạn vay (tháng), từ 6 đến 60 tháng")
 
 
 class ChatRequest(BaseModel):
