@@ -348,6 +348,49 @@ async def chat(request: ChatRequest):
                 elif msg.name == "calculate_max_loan":
                     approved_limit = data.get("final_approved_limit")
 
+            # ── FIX 1: Fallback loan_amount from HumanMessage ──
+            # When calculate_monthly_payment failed (e.g. invalid term),
+            # loan_amount stays 0. Parse from the user's original message.
+            if loan_amount == 0:
+                for msg in reversed(all_messages):
+                    if not isinstance(msg, HumanMessage):
+                        continue
+                    # Match patterns like "50 triệu", "50,000,000 VND", "50000000"
+                    amount_match = re.search(
+                        r'(?:số tiền vay[:\s]*)?(\d[\d,.]*)[\s]*(triệu|tr|tỷ|VND|đồng)',
+                        msg.content, re.IGNORECASE,
+                    )
+                    if amount_match:
+                        raw = amount_match.group(1).replace(',', '').replace('.', '')
+                        unit = amount_match.group(2).lower()
+                        parsed = float(raw)
+                        if unit in ('triệu', 'tr'):
+                            parsed *= 1_000_000
+                        elif unit == 'tỷ':
+                            parsed *= 1_000_000_000
+                        loan_amount = parsed
+                        break
+
+            # ── FIX 2: Backfill missing reasoning trail steps ──
+            # When LLM reuses prior results (e.g. skips get_customer_info
+            # on a follow-up message), early steps are missing from trail.
+            # Scan ALL ToolMessages to fill the gaps.
+            existing_step_nums = {r.get("step") for r in full_trail}
+            if full_trail and (1 not in existing_step_nums or 2 not in existing_step_nums):
+                for msg in all_messages:
+                    if not isinstance(msg, ToolMessage):
+                        continue
+                    try:
+                        result = json.loads(msg.content)
+                    except (json.JSONDecodeError, AttributeError):
+                        continue
+                    if isinstance(result, dict):
+                        rs = result.get("reasoning_step")
+                        if rs and rs.get("step") not in existing_step_nums:
+                            full_trail.append(rs)
+                            existing_step_nums.add(rs["step"])
+                full_trail.sort(key=lambda r: r.get("step", 99))
+
             try:
                 await assessment_repo.save_assessment({
                     "assessment_id": chat_assessment_id,
