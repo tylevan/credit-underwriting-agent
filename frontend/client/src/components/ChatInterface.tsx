@@ -158,12 +158,8 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
           <div className="flex justify-between items-center mt-3 px-1">
             <div className="flex gap-4">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                Secure Session
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                AES-256
+                <span className="w-1 h-1 rounded-full bg-blue-400"></span>
+                Developed by Ty Le Van
               </span>
             </div>
             <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
