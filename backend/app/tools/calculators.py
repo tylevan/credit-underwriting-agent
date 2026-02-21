@@ -169,7 +169,7 @@ def calculate_max_loan(monthly_income: float, cic_score: int) -> dict:
             return {
                 "success": False, "error": "Thu nhập không thể là số âm.",
                 "reasoning_step": {
-                    "step": 6, "action": "Tính hạn mức",
+                    "step": 5, "action": "Tính hạn mức",
                     "result": "THU NHẬP KHÔNG HỢP LỆ", "decision": "ERROR",
                     "detail": f"monthly_income = {monthly_income}"
                 }
@@ -191,7 +191,7 @@ def calculate_max_loan(monthly_income: float, cic_score: int) -> dict:
                     "message": "Từ chối cấp hạn mức do điểm tín dụng thấp."
                 },
                 "reasoning_step": {
-                    "step": 6,
+                    "step": 5,
                     "action": "Tính hạn mức vay tối đa",
                     "result": f"CIC {cic_score} < {CreditPolicy.CIC_AUTO_REJECT} → Từ chối",
                     "policy_ref": "Mục 2 - Hạn mức vay",
@@ -224,7 +224,7 @@ def calculate_max_loan(monthly_income: float, cic_score: int) -> dict:
         }
 
         reasoning_step = {
-            "step": 6,
+            "step": 5,
             "action": "Tính hạn mức vay tối đa",
             "result": f"Hạn mức = {approved_limit:,.0f} VND",
             "policy_ref": f"Mục 2 - Công thức: MIN({CreditPolicy.LOAN_MAX:,.0f}, {CreditPolicy.BASE_MULTIPLIER} × Thu nhập × {cic_factor})",
@@ -243,7 +243,7 @@ def calculate_max_loan(monthly_income: float, cic_score: int) -> dict:
         return {
             "success": False, "error": f"Lỗi tính toán: {str(e)}",
             "reasoning_step": {
-                "step": 6, "action": "Tính hạn mức",
+                "step": 5, "action": "Tính hạn mức",
                 "result": "LỖI", "decision": "ERROR", "detail": str(e)
             }
         }
