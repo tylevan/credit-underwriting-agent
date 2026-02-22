@@ -77,3 +77,26 @@ def clean_agent_content(content) -> str:
 
     return sanitize_output(text)
 
+
+def normalize_chat_message(message: str) -> str:
+    """
+    Chuẩn hoá các câu chat ngắn/viết tắt để LLM nhận diện đúng đây là
+    yêu cầu thẩm định tín dụng (tránh false deflection).
+
+    Ví dụ: "cccd 1987 vay 100 tr trong 2 năm"
+    → "Yêu cầu thẩm định tín dụng: CCCD 1987, vay 100 tr trong 2 năm."
+    """
+    text = (message or "").strip()
+    if not text:
+        return text
+
+    lower = text.lower()
+    has_credit_signal = any(keyword in lower for keyword in (
+        "cccd", "cmnd", "vay", "khoản vay", "tín dụng", "lãi suất", "dti", "cic",
+    ))
+
+    # Tối ưu cho tin nhắn ngắn kiểu command/keyword
+    if has_credit_signal and len(text) <= 120 and "thẩm định" not in lower:
+        return f"Yêu cầu thẩm định tín dụng: {text}."
+
+    return text
