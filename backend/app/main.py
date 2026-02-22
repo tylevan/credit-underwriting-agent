@@ -26,7 +26,7 @@ from .agent.graph import credit_agent
 from .middleware.logging import setup_logging
 from .middleware.error_handler import global_exception_handler
 from .middleware.rate_limiter import RateLimitMiddleware
-from .utils.helpers import clean_agent_content
+from .utils.helpers import clean_agent_content, normalize_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +293,8 @@ async def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        inputs = {"messages": [HumanMessage(content=request.message)]}
+        normalized_message = normalize_chat_message(request.message)
+        inputs = {"messages": [HumanMessage(content=normalized_message)]}
 
         final_content = ""
 
@@ -580,4 +581,3 @@ async def get_assessment_detail(assessment_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return {"success": True, "data": result}
-
