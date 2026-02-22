@@ -22,7 +22,9 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
   const paymentStep = trail.find(s => s.step === 3);
   const dtiStep = trail.find(s => s.step === 4);
 
-  const loanStep = trail.find(s => s.step === 6);
+  // Hạn mức hiện được ghi ở step 5 (tool calculate_max_loan).
+  // Hỗ trợ cả step 6 để tương thích dữ liệu cũ nếu có.
+  const loanStep = trail.find(s => s.step === 5) || trail.find(s => s.step === 6);
 
   // ── Customer info ──
   const nameMatch = customerStep?.result?.match(/^([^,]+),/);
@@ -418,5 +420,4 @@ export default function Home() {
     </div>
   );
 }
-
 

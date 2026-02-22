@@ -77,3 +77,57 @@ def clean_agent_content(content) -> str:
 
     return sanitize_output(text)
 
+
+def normalize_chat_message(message: str) -> str:
+    """
+    Chuẩn hoá các câu chat ngắn/viết tắt để LLM nhận diện đúng đây là
+    yêu cầu thẩm định tín dụng (tránh false deflection).
+
+    Ví dụ: "cccd 1987 vay 100 tr trong 2 năm"
+    → "Yêu cầu thẩm định tín dụng: CCCD 1987, vay 100 tr trong 2 năm."
+    """
+    text = (message or "").strip()
+    if not text:
+        return text
+
+    lower = text.lower()
+    has_credit_signal = any(keyword in lower for keyword in (
+        "cccd", "cmnd", "vay", "khoản vay", "tín dụng", "lãi suất", "dti", "cic",
+    ))
+
+    # Parse shorthand có cấu trúc: cccd + số tiền vay + kỳ hạn
+    id_match = re.search(r"(?:cccd|cmnd)\s*[:\-]?\s*(\d{4,15})", lower)
+    amount_match = re.search(r"vay\s*(\d+[\d.,]*)\s*(tỷ|ty|triệu|tr|vnd|đồng)?", lower)
+    term_match = re.search(
+        r"(?:trong|kỳ hạn)\s*(\d+)\s*(năm|tháng|month|months)|"
+        r"(\d+)\s*(năm|tháng|month|months)",
+        lower,
+    )
+
+    if has_credit_signal and id_match and amount_match and term_match:
+        raw_amount = amount_match.group(1).replace(".", "").replace(",", "")
+        amount_value = float(raw_amount)
+        amount_unit = (amount_match.group(2) or "vnd").strip()
+
+        if amount_unit in ("tỷ", "ty"):
+            amount_value *= 1_000_000_000
+        elif amount_unit in ("triệu", "tr"):
+            amount_value *= 1_000_000
+
+        term_value = int(term_match.group(1) or term_match.group(3))
+        term_unit = (term_match.group(2) or term_match.group(4) or "tháng").strip()
+        term_months = term_value * 12 if term_unit == "năm" else term_value
+
+        return (
+            "Yêu cầu thẩm định tín dụng: "
+            f"CCCD {id_match.group(1)}, "
+            f"số tiền vay {amount_value:,.0f} VND, "
+            f"kỳ hạn {term_months} tháng."
+        )
+
+    # Fallback cho tin nhắn ngắn kiểu command/keyword
+    if has_credit_signal and len(text) <= 120 and "thẩm định" not in lower:
+        suffix = "" if text.endswith((".", "?", "!")) else "."
+        return f"Yêu cầu thẩm định tín dụng: {text}{suffix}"
+
+    return text
