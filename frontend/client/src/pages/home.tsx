@@ -14,6 +14,27 @@ function cleanMarkdown(text: string): string {
     .trim();
 }
 
+/**
+ * Parse a credit assessment LLM response and produce a normalized AssessmentResult.
+ *
+ * @param res - The raw LLM assessment response (may include decision, reasoning_trail, report, and needs_human_review).
+ * @param requestData - Context for the request; `id` is used to generate a fallback customer name when missing.
+ * @returns An object containing:
+ *  - status: `"APPROVED" | "REJECTED" | "REVIEW"` — final assessment status,
+ *  - customerName: customer name or generated fallback,
+ *  - age: age in years (0 if not found),
+ *  - income: annual income in VND (0 if not found),
+ *  - cicScore: numeric CIC score (0 if not found),
+ *  - cicRating: human-readable CIC rating,
+ *  - badDebt: `true` if bad-debt indicators are present, `false` otherwise,
+ *  - rate: recommended annual interest rate as a percentage (undefined if not present),
+ *  - monthlyPayment: monthly payment in VND (undefined if not present),
+ *  - dti: debt-to-income as a number or the string `"N/A"` when unavailable,
+ *  - limit: recommended loan limit in VND (undefined if not present),
+ *  - reason: concise human-readable reason summary,
+ *  - recommendation: cleaned recommendation text when available (or a human-review prompt when needed),
+ *  - reasoningTrail: the raw reasoning_trail array extracted from the response.
+ */
 function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: string; amount: number; term: number }): AssessmentResult {
   const trail = res.reasoning_trail || [];
 
@@ -201,6 +222,14 @@ function parseChatReport(text: string): AssessmentResult | null {
   };
 }
 
+/**
+ * Main application component that renders the FinSafe Core UI and coordinates loan assessments and chat interactions.
+ *
+ * Renders a two-column layout with a loan form and chat interface, manages message state and loading state, and
+ * handles submitting assessment requests and chat messages to backend services.
+ *
+ * @returns The rendered Home component containing the LoanForm and ChatInterface.
+ */
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -419,4 +448,3 @@ export default function Home() {
     </div>
   );
 }
-

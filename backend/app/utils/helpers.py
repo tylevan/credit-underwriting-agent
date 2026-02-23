@@ -80,11 +80,15 @@ def clean_agent_content(content) -> str:
 
 def normalize_chat_message(message: str) -> str:
     """
-    Chuẩn hoá các câu chat ngắn/viết tắt để LLM nhận diện đúng đây là
-    yêu cầu thẩm định tín dụng (tránh false deflection).
-
-    Ví dụ: "cccd 1987 vay 100 tr trong 2 năm"
-    → "Yêu cầu thẩm định tín dụng: CCCD 1987, vay 100 tr trong 2 năm."
+    Normalize short or abbreviated chat messages into a clear credit underwriting request.
+    
+    If the input contains credit-related signals (e.g., "cccd", "cmnd", "vay", "tín dụng") the function attempts to parse a structured shorthand of the form: identifier (CCCD/CMND), loan amount (with units like tỷ/triệu/VND), and loan term (years or months). When all three are found it returns a standardized Vietnamese sentence: "Yêu cầu thẩm định tín dụng: CCCD <id>, số tiền vay <amount> VND, kỳ hạn <months> tháng." If a structured parse fails but the message is short (≤120 characters) and contains a credit signal, it returns "Yêu cầu thẩm định tín dụng: <original_text>." Otherwise it returns the original trimmed text unchanged.
+    
+    Parameters:
+        message (str): The chat message to normalize; leading/trailing whitespace will be trimmed.
+    
+    Returns:
+        str: The normalized credit underwriting request string or the original trimmed message.
     """
     text = (message or "").strip()
     if not text:
