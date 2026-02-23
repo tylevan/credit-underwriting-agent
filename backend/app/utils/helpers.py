@@ -140,5 +140,4 @@ def normalize_chat_message(message: str) -> str:
     if has_credit_signal and len(text) <= 120 and "thẩm định" not in lower:
         suffix = "" if text.endswith((".", "?", "!")) else "."
         return f"Yêu cầu thẩm định tín dụng: {text}{suffix}"
-
     return text
