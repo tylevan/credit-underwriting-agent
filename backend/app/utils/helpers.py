@@ -105,8 +105,19 @@ def normalize_chat_message(message: str) -> str:
     )
 
     if has_credit_signal and id_match and amount_match and term_match:
-        raw_amount = amount_match.group(1).replace(".", "").replace(",", "")
-        amount_value = float(raw_amount)
+        s = amount_match.group(1)
+        if "." in s and "," in s:
+            decimal_sep = "." if s.rfind(".") > s.rfind(",") else ","
+            thousand_sep = "," if decimal_sep == "." else "."
+            normalized_amount = s.replace(thousand_sep, "")
+            if decimal_sep == ",":
+                normalized_amount = normalized_amount.replace(",", ".")
+        elif "," in s:
+            normalized_amount = s.replace(",", ".")
+        else:
+            normalized_amount = s
+
+        amount_value = float(normalized_amount)
         amount_unit = (amount_match.group(2) or "vnd").strip()
 
         if amount_unit in ("tỷ", "ty"):
