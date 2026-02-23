@@ -95,8 +95,49 @@ def normalize_chat_message(message: str) -> str:
         "cccd", "cmnd", "vay", "khoản vay", "tín dụng", "lãi suất", "dti", "cic",
     ))
 
-    # Tối ưu cho tin nhắn ngắn kiểu command/keyword
-    if has_credit_signal and len(text) <= 120 and "thẩm định" not in lower:
-        return f"Yêu cầu thẩm định tín dụng: {text}."
+    # Parse shorthand có cấu trúc: cccd + số tiền vay + kỳ hạn
+    id_match = re.search(r"(?:cccd|cmnd)\s*[:\-]?\s*(\d{4,15})", lower)
+    amount_match = re.search(r"vay\s*(\d+[\d.,]*)\s*(tỷ|ty|triệu|tr|vnd|đồng)?", lower)
+    term_match = re.search(
+        r"(?:trong|kỳ hạn)\s*(\d+)\s*(năm|tháng|month|months)|"
+        r"(\d+)\s*(năm|tháng|month|months)",
+        lower,
+    )
 
+    if has_credit_signal and id_match and amount_match and term_match:
+        s = amount_match.group(1)
+        if "." in s and "," in s:
+            decimal_sep = "." if s.rfind(".") > s.rfind(",") else ","
+            thousand_sep = "," if decimal_sep == "." else "."
+            normalized_amount = s.replace(thousand_sep, "")
+            if decimal_sep == ",":
+                normalized_amount = normalized_amount.replace(",", ".")
+        elif "," in s:
+            normalized_amount = s.replace(",", ".")
+        else:
+            normalized_amount = s
+
+        amount_value = float(normalized_amount)
+        amount_unit = (amount_match.group(2) or "vnd").strip()
+
+        if amount_unit in ("tỷ", "ty"):
+            amount_value *= 1_000_000_000
+        elif amount_unit in ("triệu", "tr"):
+            amount_value *= 1_000_000
+
+        term_value = int(term_match.group(1) or term_match.group(3))
+        term_unit = (term_match.group(2) or term_match.group(4) or "tháng").strip()
+        term_months = term_value * 12 if term_unit == "năm" else term_value
+
+        return (
+            "Yêu cầu thẩm định tín dụng: "
+            f"CCCD {id_match.group(1)}, "
+            f"số tiền vay {amount_value:,.0f} VND, "
+            f"kỳ hạn {term_months} tháng."
+        )
+
+    # Fallback cho tin nhắn ngắn kiểu command/keyword
+    if has_credit_signal and len(text) <= 120 and "thẩm định" not in lower:
+        suffix = "" if text.endswith((".", "?", "!")) else "."
+        return f"Yêu cầu thẩm định tín dụng: {text}{suffix}"
     return text
