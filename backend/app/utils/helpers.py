@@ -3,6 +3,7 @@ Utility functions.
 """
 
 import re
+import unicodedata
 from ..config.policy_constants import CreditPolicy
 
 # Framework keywords nội bộ — KHÔNG BAO GIỜ xuất hiện trong output cho user
@@ -53,6 +54,23 @@ ASSESSMENT_DETAIL_MARKERS = (
     "thẩm định", "hồ sơ", "số tiền vay", "kỳ hạn", "thu nhập của tôi",
 )
 
+POLICY_QUERY_MARKERS_ASCII = (
+    "dieu kien vay", "dieu kien co ban", "chinh sach vay", "chinh sach tin dung",
+    "lai suat", "han muc", "quy dinh vay", "vay duoc bao nhieu", "tieu chi vay", "cic",
+)
+
+
+def _normalize_for_matching(text: str) -> str:
+    """Normalize tiếng Việt để so khớp intent ổn định hơn (kể cả khi user bỏ dấu)."""
+    if not text:
+        return ""
+
+    text = text.lower().replace("đ", "d")
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
 
 def sanitize_output(content: str) -> str:
     """
@@ -99,7 +117,12 @@ def is_general_policy_question(message: str) -> bool:
     if not text:
         return False
 
-    has_policy_marker = any(marker in text for marker in POLICY_QUERY_MARKERS)
+    normalized_text = _normalize_for_matching(text)
+
+    has_policy_marker = (
+        any(marker in text for marker in POLICY_QUERY_MARKERS)
+        or any(marker in normalized_text for marker in POLICY_QUERY_MARKERS_ASCII)
+    )
     if not has_policy_marker:
         return False
 
