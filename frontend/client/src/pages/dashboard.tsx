@@ -65,7 +65,7 @@ interface DatePreset {
    ═══════════════════════════════════════ */
 
 function formatCurrency(n: number): string {
-    return `${Math.round(n).toLocaleString("en-US")} VND`;
+    return new Intl.NumberFormat("vi-VN").format(n) + " ₫";
 }
 
 function formatDateTime(iso: string): string {
@@ -331,6 +331,7 @@ export default function Dashboard() {
                                         <th className="text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Nhân viên</th>
                                         <th className="text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Khách hàng</th>
                                         <th className="text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Số tiền vay</th>
+                                        <th className="text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Thời hạn vay</th>
                                         <th className="text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Kết quả</th>
                                         <th className="text-right text-[11px] font-bold text-slate-400 uppercase tracking-widest px-5 py-3">Chi tiết</th>
                                     </tr>
@@ -339,14 +340,14 @@ export default function Dashboard() {
                                     {loading ? (
                                         Array.from({ length: 5 }).map((_, i) => (
                                             <tr key={i} className="border-b border-slate-50">
-                                                <td className="px-5 py-4" colSpan={7}>
+                                                <td className="px-5 py-4" colSpan={8}>
                                                     <div className="h-4 bg-slate-100 rounded animate-pulse w-full" />
                                                 </td>
                                             </tr>
                                         ))
                                     ) : assessments.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
+                                            <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">
                                                 Chưa có dữ liệu thẩm định
                                             </td>
                                         </tr>
@@ -368,6 +369,9 @@ export default function Dashboard() {
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     <p className="text-sm font-medium text-blue-600 whitespace-nowrap">{formatCurrency(item.loan_amount)}</p>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <p className="text-sm text-slate-700 whitespace-nowrap">{item.term_months} tháng</p>
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     <DecisionBadge decision={item.decision} />
