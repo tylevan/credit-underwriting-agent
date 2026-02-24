@@ -65,7 +65,7 @@ interface DatePreset {
    ═══════════════════════════════════════ */
 
 function formatCurrency(n: number): string {
-    return new Intl.NumberFormat("vi-VN").format(n) + " ₫";
+    return `${Math.round(n).toLocaleString("en-US")} VND`;
 }
 
 function formatDateTime(iso: string): string {

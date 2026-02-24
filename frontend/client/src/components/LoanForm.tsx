@@ -5,17 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { ClipboardCheck, Info, Search } from "lucide-react";
-
-/**
- * Định dạng số thành tiền tệ VNĐ
- */
-function formatCurrencyLocal(amount: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0
-  }).format(amount)
-}
+import { formatCurrency } from "@/lib/utils";
 
 interface LoanFormProps {
   onSubmit: (data: { id: string; amount: number; term: number }) => void;
@@ -70,7 +60,7 @@ export function LoanForm({ onSubmit, isLoading }: LoanFormProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-end">
               <Label className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Số tiền đề nghị</Label>
-              <span className="text-xl font-black text-primary tracking-tight">{formatCurrencyLocal(formData.amount)}</span>
+              <span className="text-xl font-black text-primary tracking-tight">{formatCurrency(formData.amount)}</span>
             </div>
             <div className="px-1">
               <Slider
