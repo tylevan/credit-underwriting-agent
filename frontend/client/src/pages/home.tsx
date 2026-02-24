@@ -68,30 +68,33 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
     : res.decision === "REJECTED" ? "REJECTED"
       : "REVIEW") as AssessmentResult["status"];
 
-  // Build short reason based on status
+  // Keep reason extraction consistent with chat flow: prefer LLM report section
+  const reasonMatch = res.report?.match(/##\s*(?:LÝ DO|Diễn giải[^\n]*)\n([\s\S]*?)(?=##|$)/i);
+
+  // Fallback from reasoning trail when report doesn't contain detail section
   const failParts = trail
     .filter(s => s.decision === "FAIL" || s.decision === "REVIEW")
-    .map(s => s.detail);
+    .map(s => s.detail)
+    .filter(Boolean);
 
-  let reason: string;
-  if (failParts.length > 0) {
-    reason = cleanMarkdown(failParts.join(". "));
-  } else if (status === "APPROVED") {
-    reason = "Hồ sơ đạt tất cả tiêu chí thẩm định. Đủ điều kiện phê duyệt khoản vay.";
-  } else {
-    reason = "Đã hoàn tất thẩm định.";
-  }
+  const reason = reasonMatch
+    ? cleanMarkdown(reasonMatch[1])
+    : failParts.length > 0
+      ? cleanMarkdown(failParts.join(". "))
+      : status === "APPROVED"
+        ? "Hồ sơ đạt tất cả tiêu chí thẩm định. Đủ điều kiện phê duyệt khoản vay."
+        : "Đã hoàn tất thẩm định.";
 
   // ── Extract recommendation from LLM report ──
-  // Try ĐỀ XUẤT first, then LÝ DO section
+  // Try ĐỀ XUẤT first, then LÝ DO/Diễn giải section
   let recommendation: string | undefined;
   if (res.report) {
-    const recMatch = res.report.match(/##\s*ĐỀ XUẤT[^\n]*\n([\s\S]*?)(?=##|$)/);
+    const recMatch = res.report.match(/##\s*(?:ĐỀ XUẤT|Đề xuất|Gợi ý)[^\n]*\n([\s\S]*?)(?=##|$)/i);
     if (recMatch) {
       recommendation = cleanMarkdown(recMatch[1].replace(/^-\s*/gm, '• '));
     }
     if (!recommendation) {
-      const lyDoMatch = res.report.match(/##\s*LÝ DO[^\n]*\n([\s\S]*?)(?=##|$)/);
+      const lyDoMatch = res.report.match(/##\s*(?:LÝ DO|Diễn giải[^\n]*)\n([\s\S]*?)(?=##|$)/i);
       if (lyDoMatch) {
         recommendation = cleanMarkdown(lyDoMatch[1]);
       }
@@ -420,4 +423,3 @@ export default function Home() {
     </div>
   );
 }
-
