@@ -26,7 +26,12 @@ from .agent.graph import credit_agent
 from .middleware.logging import setup_logging
 from .middleware.error_handler import global_exception_handler
 from .middleware.rate_limiter import RateLimitMiddleware
-from .utils.helpers import clean_agent_content, normalize_chat_message
+from .utils.helpers import (
+    build_policy_quick_reply,
+    clean_agent_content,
+    is_general_policy_question,
+    normalize_chat_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +298,14 @@ async def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
+        if is_general_policy_question(request.message):
+            return ChatResponse(
+                success=True,
+                thread_id=thread_id,
+                message=build_policy_quick_reply(),
+                reasoning_trail=[],
+            )
+
         normalized_message = normalize_chat_message(request.message)
         inputs = {"messages": [HumanMessage(content=normalized_message)]}
 

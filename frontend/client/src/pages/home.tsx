@@ -3,6 +3,7 @@ import { LoanForm } from "@/components/LoanForm";
 import { ChatInterface, Message } from "@/components/ChatInterface";
 import { AssessmentResult } from "@/components/ResultCard";
 import { assessCredit, chatWithAgent, type AssessmentResponse } from "@/lib/api";
+import { formatCurrency } from "@/lib/utils";
 
 /** Strip markdown bold markers and clean extra whitespace (preserving newlines) */
 function cleanMarkdown(text: string): string {
@@ -217,7 +218,7 @@ export default function Home() {
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: `Yêu cầu thẩm định hồ sơ. CCCD: ${data.id}. Số tiền: ${data.amount.toLocaleString('vi-VN')} VND. Kỳ hạn: ${data.term} tháng.`,
+      content: `Yêu cầu thẩm định hồ sơ. CCCD: ${data.id}. Số tiền: ${formatCurrency(data.amount)}. Kỳ hạn: ${data.term} tháng.`,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMsg]);
@@ -258,7 +259,7 @@ export default function Home() {
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           role: "system",
-          content: `📋 Thẩm định CCCD ${data.id}, hạn mức mong muốn ${data.amount.toLocaleString('vi-VN')} VND, thời hạn ${data.term} tháng.`,
+          content: `📋 Thẩm định CCCD ${data.id}, hạn mức mong muốn ${formatCurrency(data.amount)}, thời hạn ${data.term} tháng.`,
           timestamp: new Date()
         }]);
 

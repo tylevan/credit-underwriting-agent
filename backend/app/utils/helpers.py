@@ -3,6 +3,7 @@ Utility functions.
 """
 
 import re
+from ..config.policy_constants import CreditPolicy
 
 # Framework keywords nội bộ — KHÔNG BAO GIỜ xuất hiện trong output cho user
 INTERNAL_KEYWORDS = [
@@ -41,21 +42,32 @@ DEFLECTION_MESSAGE = (
     "Vui lòng đặt câu hỏi trong phạm vi này."
 )
 
+INTERNAL_REDACTION = "[chi tiết kỹ thuật nội bộ]"
+
+POLICY_QUERY_MARKERS = (
+    "điều kiện vay", "điều kiện cơ bản", "chính sách vay", "chính sách tín dụng",
+    "lãi suất", "hạn mức", "quy định vay", "vay được bao nhiêu", "tiêu chí vay", "cic",
+)
+
+ASSESSMENT_DETAIL_MARKERS = (
+    "thẩm định", "hồ sơ", "số tiền vay", "kỳ hạn", "thu nhập của tôi",
+)
+
 
 def sanitize_output(content: str) -> str:
     """
     Output guardrail:
     1. Thay tên tool code bằng tên tự nhiên (VD: get_customer_info → tra cứu thông tin khách hàng)
-    2. Nếu vẫn chứa framework keywords nội bộ → chặn toàn bộ
+    2. Nếu chứa framework keywords nội bộ → ẩn (redact) thay vì chặn toàn bộ
     """
     # Step 1: Replace tool names with natural language
     content = _TOOL_NAME_PATTERN.sub(
         lambda m: TOOL_DISPLAY_NAMES.get(m.group(0).lower(), m.group(0)),
         content,
     )
-    # Step 2: Block if framework keywords leaked
+    # Step 2: Redact leaked framework keywords to avoid over-deflection
     if _LEAK_PATTERN.search(content):
-        return DEFLECTION_MESSAGE
+        content = _LEAK_PATTERN.sub(INTERNAL_REDACTION, content)
     return content
 
 
@@ -78,6 +90,48 @@ def clean_agent_content(content) -> str:
     return sanitize_output(text)
 
 
+def is_general_policy_question(message: str) -> bool:
+    """
+    Pre-validate câu hỏi chính sách tổng quát để trả lời trực tiếp,
+    tránh bị đẩy vào luồng thẩm định hồ sơ hoặc deflection sai.
+    """
+    text = (message or "").strip().lower()
+    if not text:
+        return False
+
+    has_policy_marker = any(marker in text for marker in POLICY_QUERY_MARKERS)
+    if not has_policy_marker:
+        return False
+
+    has_assessment_detail = any(marker in text for marker in ASSESSMENT_DETAIL_MARKERS)
+    if has_assessment_detail:
+        return False
+
+    # Tránh conflict với luồng pre-validation thẩm định hiện có:
+    # nếu user đã đưa payload kiểu hồ sơ (CCCD/CMND + số tiền vay + kỳ hạn)
+    # thì KHÔNG short-circuit policy.
+    has_id = bool(re.search(r"\b(?:cccd|cmnd)\b\s*[:\-]?\s*\d{4,15}", text))
+    has_amount = bool(re.search(r"\b(?:vay|số tiền)\b\s*\d+[\d.,]*\s*(?:tỷ|ty|triệu|tr|vnd|đồng)?", text))
+    has_term = bool(re.search(r"\b(?:kỳ hạn|trong)\b\s*\d+\s*(?:tháng|năm|month|months)", text))
+
+    if has_id and has_amount and has_term:
+        return False
+
+    return True
+
+
+def build_policy_quick_reply() -> str:
+    """Tạo phản hồi policy ngắn gọn cho câu hỏi tổng quát."""
+    return (
+        "Điều kiện cơ bản để vay tín chấp gồm:\n"
+        f"- Độ tuổi: {CreditPolicy.AGE_MIN}-{CreditPolicy.AGE_MAX} tuổi.\n"
+        f"- Thu nhập tối thiểu: {CreditPolicy.MIN_MONTHLY_INCOME:,.0f} VND/tháng.\n"
+        f"- Hạn mức sản phẩm: {CreditPolicy.LOAN_MIN:,.0f}-{CreditPolicy.LOAN_MAX:,.0f} VND.\n"
+        f"- Kỳ hạn vay: {CreditPolicy.TERM_MIN_MONTHS}-{CreditPolicy.TERM_MAX_MONTHS} tháng.\n"
+        f"- Từ chối ngay nếu CIC < {CreditPolicy.CIC_AUTO_REJECT} hoặc có nợ xấu nhóm {CreditPolicy.BAD_DEBT_GROUPS}."
+    )
+
+
 def normalize_chat_message(message: str) -> str:
     """
     Chuẩn hoá các câu chat ngắn/viết tắt để LLM nhận diện đúng đây là
@@ -91,6 +145,11 @@ def normalize_chat_message(message: str) -> str:
         return text
 
     lower = text.lower()
+    # Với câu hỏi policy tổng quát, giữ nguyên message để tránh bị ép sang intent thẩm định hồ sơ
+    has_question_tone = "?" in text or lower.startswith(("điều", "chính sách", "lãi suất", "hạn mức", "quy định"))
+    if has_question_tone and any(marker in lower for marker in POLICY_QUERY_MARKERS):
+        return text
+
     has_credit_signal = any(keyword in lower for keyword in (
         "cccd", "cmnd", "vay", "khoản vay", "tín dụng", "lãi suất", "dti", "cic",
     ))
