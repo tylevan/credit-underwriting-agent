@@ -43,6 +43,7 @@ export interface AssessmentResult {
   monthlyPayment?: number;
   dti?: number | string;
   limit?: number;
+  requestedAmount?: number;
   reason: string;
   recommendation?: string;
   reasoningTrail?: ReasoningStep[];
@@ -521,7 +522,7 @@ export function ResultCard({ data }: ResultCardProps) {
                     <span>DTI {data.dti}% vượt ngưỡng 40%. Đề xuất <strong>giảm hạn mức vay</strong> hoặc <strong>tăng thời hạn vay</strong> để giảm tỷ lệ DTI về mức cho phép.</span>
                   </p>
                 )}
-                {data.limit != null && data.monthlyPayment != null && (
+                {data.limit != null && data.requestedAmount != null && data.requestedAmount > data.limit && (
                   <p className="text-[13px] leading-relaxed text-amber-800 flex items-start gap-2">
                     <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <span>Có thể xem xét điều chỉnh khoản vay xuống mức hạn mức được duyệt {formatCurrency(data.limit)} để đảm bảo khả năng trả nợ.</span>

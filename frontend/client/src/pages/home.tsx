@@ -116,6 +116,7 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
     monthlyPayment,
     dti: dtiValue,
     limit,
+    requestedAmount: requestData.amount,
     reason,
     recommendation,
     reasoningTrail: trail,
@@ -176,6 +177,11 @@ function parseChatReport(text: string): AssessmentResult | null {
   const limitMatch = text.match(/Hạn mức[^:\n]*[:\s]*([\d,.]+)\s*VND/);
   const limit = limitMatch ? parseInt(limitMatch[1].replace(/[,. ]/g, "")) : undefined;
 
+  const requestedAmountMatch = text.match(/(?:Số tiền vay(?: đề nghị)?|Khoản vay yêu cầu)[:\s]*([\d,.]+)\s*VND/i);
+  const requestedAmount = requestedAmountMatch
+    ? parseInt(requestedAmountMatch[1].replace(/[,. ]/g, ""))
+    : undefined;
+
   // ── Reason ──
   // Match both old format (## LÝ DO) and current format (## Diễn giải chi tiết)
   const lyDoMatch = text.match(/##\s*(?:LÝ DO|Diễn giải[^\n]*)\n([\s\S]*?)(?=##|$)/);
@@ -200,6 +206,7 @@ function parseChatReport(text: string): AssessmentResult | null {
     monthlyPayment,
     dti: dtiValue,
     limit,
+    requestedAmount,
     reason,
     recommendation,
   };
