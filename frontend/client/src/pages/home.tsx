@@ -355,18 +355,9 @@ export default function Home() {
         if (cardData) {
           // Assessment result detected → show short summary + card
           // Attach reasoning trail from response (same as LoanForm)
-          const trail = normalizeTrail(response.reasoning_trail || []);
+          const trail = response.reasoning_trail || [];
           if (trail.length) {
             cardData.reasoningTrail = trail;
-
-            // Fallback: nếu parse report không ra hạn mức, lấy từ reasoning trail step 5
-            if (cardData.limit == null) {
-              const loanStep = trail.find(s => s.step === 5);
-              const limitMatch = loanStep?.result?.match(/([\d,]+)\s*VND/);
-              if (limitMatch) {
-                cardData.limit = parseInt(limitMatch[1].replace(/,/g, ""));
-              }
-            }
           }
 
           // Always overwrite localStorage for latest assessment context,
