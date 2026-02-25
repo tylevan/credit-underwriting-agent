@@ -296,11 +296,7 @@ async def assess_credit(request: AssessmentRequest):
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     normalized_message = normalize_chat_message(request.message)
-
-    # For a fresh assessment request in chat, run on a fresh thread to avoid
-    # any cross-assessment contamination from previous tool/state history.
-    starts_new_assessment = is_assessment_request(normalized_message)
-    thread_id = str(uuid.uuid4()) if starts_new_assessment else (request.thread_id or str(uuid.uuid4()))
+    thread_id = request.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
     try:

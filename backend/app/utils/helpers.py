@@ -55,24 +55,6 @@ ASSESSMENT_DETAIL_MARKERS = (
 
 
 
-
-def is_assessment_request(message: str) -> bool:
-    """
-    Detect whether chat message is a full assessment request (ID + amount + term).
-    Used to isolate assessment runs from existing thread state.
-    """
-    text = (message or "").strip().lower()
-    if not text:
-        return False
-
-    has_id = bool(re.search(r"(?:cccd|cmnd)\s*[:\-]?\s*\d{4,15}", text))
-    has_amount = bool(re.search(r"(?:số tiền|vay)\s*[:\-]?\s*\d[\d.,]*\s*(?:tỷ|ty|triệu|tr|vnd|đồng)?", text))
-    has_term = bool(re.search(r"(?:kỳ hạn|trong)\s*\d+\s*(?:tháng|năm|month|months)", text))
-    has_assessment_keyword = "thẩm định" in text or "hồ sơ" in text
-
-    return has_id and has_amount and has_term and has_assessment_keyword
-
-
 def sanitize_output(content: str) -> str:
     """
     Output guardrail:

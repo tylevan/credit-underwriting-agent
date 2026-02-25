@@ -352,15 +352,6 @@ export default function Home() {
           const trail = response.reasoning_trail || [];
           if (trail.length) {
             cardData.reasoningTrail = trail;
-
-            // Fallback: nếu parse report không ra hạn mức, lấy từ reasoning trail step 5/6
-            if (cardData.limit == null) {
-              const loanStep = trail.find(s => s.step === 5 || s.step === 6);
-              const limitMatch = loanStep?.result?.match(/([\d,]+)\s*VND/);
-              if (limitMatch) {
-                cardData.limit = parseInt(limitMatch[1].replace(/,/g, ""));
-              }
-            }
           }
 
           // Always overwrite localStorage for latest assessment context,
