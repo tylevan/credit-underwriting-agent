@@ -294,6 +294,7 @@ async def assess_credit(request: AssessmentRequest):
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
+    normalized_message = normalize_chat_message(request.message)
     thread_id = request.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
@@ -306,7 +307,12 @@ async def chat(request: ChatRequest):
                 reasoning_trail=[],
             )
 
-        normalized_message = normalize_chat_message(request.message)
+        # Snapshot message length trước khi chạy turn mới.
+        # Dùng để tách chính xác ToolMessages của lượt hiện tại,
+        # tránh lẫn reasoning trail từ các lượt trước trong cùng thread.
+        pre_state = credit_agent.get_state(config)
+        pre_messages_len = len(pre_state.values.get("messages", [])) if pre_state and pre_state.values else 0
+
         inputs = {"messages": [HumanMessage(content=normalized_message)]}
 
         final_content = ""
@@ -316,15 +322,41 @@ async def chat(request: ChatRequest):
             if isinstance(last_msg, AIMessage) and last_msg.content and not last_msg.tool_calls:
                 final_content = clean_agent_content(last_msg.content)
 
-        # Get final state — use full trail (not offset-sliced) for reliability
+        # Get final state
         final_state = credit_agent.get_state(config)
-        full_trail = final_state.values.get("reasoning_trail", []) if final_state.values else []
         final_decision = final_state.values.get("final_decision") if final_state.values else None
         needs_review = final_state.values.get("needs_human_review", False) if final_state.values else False
 
+        all_messages = final_state.values.get("messages", []) if final_state.values else []
+        current_turn_messages = all_messages[pre_messages_len:]
+
+        # Chỉ lấy reasoning steps từ ToolMessages của LƯỢT HIỆN TẠI.
+        # Nếu turn này không tạo assessment/tool-call mới thì trail = [],
+        # nhờ đó frontend không hiển thị nhầm luồng của hồ sơ trước.
+        current_turn_trail = []
+        seen_steps = set()
+        for msg in current_turn_messages:
+            if not isinstance(msg, ToolMessage):
+                continue
+            try:
+                result = json.loads(msg.content)
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            if not isinstance(result, dict):
+                continue
+            rs = result.get("reasoning_step")
+            if not rs:
+                continue
+            step_key = (rs.get("step"), rs.get("action"))
+            if step_key in seen_steps:
+                continue
+            current_turn_trail.append(rs)
+            seen_steps.add(step_key)
+        current_turn_trail.sort(key=lambda r: r.get("step", 99))
+
         # Save to DB only when agent reached a final decision
         chat_assessment_id = None
-        if final_decision and full_trail:
+        if final_decision and current_turn_trail:
             chat_assessment_id = str(uuid.uuid4())
 
             # Extract structured data from ToolMessage results in state
@@ -336,8 +368,7 @@ async def chat(request: ChatRequest):
             loan_amount = 0.0
             term_months = 0
 
-            all_messages = final_state.values.get("messages", []) if final_state.values else []
-            for msg in all_messages:
+            for msg in current_turn_messages:
                 if not isinstance(msg, ToolMessage):
                     continue
                 try:
@@ -366,44 +397,29 @@ async def chat(request: ChatRequest):
             # When calculate_monthly_payment failed (e.g. invalid term),
             # loan_amount stays 0. Parse from the user's original message.
             if loan_amount == 0:
-                for msg in reversed(all_messages):
-                    if not isinstance(msg, HumanMessage):
-                        continue
-                    # Match patterns like "50 triệu", "50,000,000 VND", "50000000"
-                    amount_match = re.search(
-                        r'(?:số tiền vay[:\s]*)?(\d[\d,.]*)[\s]*(triệu|tr|tỷ|VND|đồng)',
-                        msg.content, re.IGNORECASE,
-                    )
-                    if amount_match:
-                        raw = amount_match.group(1).replace(',', '').replace('.', '')
-                        unit = amount_match.group(2).lower()
-                        parsed = float(raw)
-                        if unit in ('triệu', 'tr'):
-                            parsed *= 1_000_000
-                        elif unit == 'tỷ':
-                            parsed *= 1_000_000_000
-                        loan_amount = parsed
+                # Parse amount from current user turn only to avoid pulling old values
+                # from previous assessments in the same thread.
+                source_text = ""
+                for msg in reversed(current_turn_messages):
+                    if isinstance(msg, HumanMessage):
+                        source_text = msg.content
                         break
+                if not source_text:
+                    source_text = normalized_message
 
-            # ── FIX 2: Backfill missing reasoning trail steps ──
-            # When LLM reuses prior results (e.g. skips get_customer_info
-            # on a follow-up message), early steps are missing from trail.
-            # Scan ALL ToolMessages to fill the gaps.
-            existing_step_nums = {r.get("step") for r in full_trail}
-            if full_trail and (1 not in existing_step_nums or 2 not in existing_step_nums):
-                for msg in all_messages:
-                    if not isinstance(msg, ToolMessage):
-                        continue
-                    try:
-                        result = json.loads(msg.content)
-                    except (json.JSONDecodeError, AttributeError):
-                        continue
-                    if isinstance(result, dict):
-                        rs = result.get("reasoning_step")
-                        if rs and rs.get("step") not in existing_step_nums:
-                            full_trail.append(rs)
-                            existing_step_nums.add(rs["step"])
-                full_trail.sort(key=lambda r: r.get("step", 99))
+                amount_match = re.search(
+                    r'(?:số tiền vay[:\s]*)?(\d[\d,.]*)[\s]*(triệu|tr|tỷ|VND|đồng)',
+                    source_text, re.IGNORECASE,
+                )
+                if amount_match:
+                    raw = amount_match.group(1).replace(',', '').replace('.', '')
+                    unit = amount_match.group(2).lower()
+                    parsed = float(raw)
+                    if unit in ('triệu', 'tr'):
+                        parsed *= 1_000_000
+                    elif unit == 'tỷ':
+                        parsed *= 1_000_000_000
+                    loan_amount = parsed
 
             try:
                 await assessment_repo.save_assessment({
@@ -417,7 +433,7 @@ async def chat(request: ChatRequest):
                     "cic_score": cic_score,
                     "dti": dti_value,
                     "approved_limit": approved_limit,
-                    "reasoning_trail": full_trail,
+                    "reasoning_trail": current_turn_trail,
                     "report": final_content,
                     "needs_human_review": needs_review,
                 })
@@ -439,7 +455,7 @@ async def chat(request: ChatRequest):
             assessment_id=chat_assessment_id,
             thread_id=thread_id,
             message=final_content,
-            reasoning_trail=full_trail,
+            reasoning_trail=current_turn_trail,
         )
 
     except Exception as e:

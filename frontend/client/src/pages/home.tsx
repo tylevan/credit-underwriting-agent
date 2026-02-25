@@ -349,18 +349,20 @@ export default function Home() {
         if (cardData) {
           // Assessment result detected → show short summary + card
           // Attach reasoning trail from response (same as LoanForm)
-          if (response.reasoning_trail?.length) {
-            cardData.reasoningTrail = response.reasoning_trail;
-
-            // Save reasoning trail to localStorage for /trail page
-            localStorage.setItem("reasoning_trail", JSON.stringify({
-              customerName: cardData.customerName,
-              decision: cardData.status,
-              threadId: response.assessment_id || response.thread_id,
-              timestamp: new Date().toISOString(),
-              trail: response.reasoning_trail,
-            }));
+          const trail = response.reasoning_trail || [];
+          if (trail.length) {
+            cardData.reasoningTrail = trail;
           }
+
+          // Always overwrite localStorage for latest assessment context,
+          // kể cả khi trail rỗng để tránh hiển thị nhầm hồ sơ trước đó.
+          localStorage.setItem("reasoning_trail", JSON.stringify({
+            customerName: cardData.customerName,
+            decision: cardData.status,
+            threadId: response.assessment_id || response.thread_id,
+            timestamp: new Date().toISOString(),
+            trail,
+          }));
 
           const statusLabel = cardData.status === "APPROVED" ? "Phê duyệt"
             : cardData.status === "REJECTED" ? "Từ chối" : "Cần xem xét";
