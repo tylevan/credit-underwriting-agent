@@ -54,6 +54,7 @@ ASSESSMENT_DETAIL_MARKERS = (
 )
 
 
+
 def sanitize_output(content: str) -> str:
     """
     Output guardrail:
