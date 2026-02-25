@@ -122,7 +122,6 @@ function getStepMeta(step: ReasoningStep) {
     3: <Calculator className="w-4 h-4" />,
     4: <BarChart3 className="w-4 h-4" />,
     5: <Landmark className="w-4 h-4" />,
-    6: <Landmark className="w-4 h-4" />,
   };
 
   const decisionMeta: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string; label: string }> = {
@@ -292,7 +291,10 @@ export function ResultCard({ data }: ResultCardProps) {
   const [trailOpen, setTrailOpen] = useState(false);
   const isApproved = data.status === "APPROVED";
   const isRejected = data.status === "REJECTED";
-  const hasTrail = data.reasoningTrail && data.reasoningTrail.length > 0;
+  const normalizedTrail = (data.reasoningTrail || [])
+    .filter(step => typeof step.step === "number" && step.step >= 1 && step.step <= 5)
+    .sort((a, b) => a.step - b.step);
+  const hasTrail = normalizedTrail.length > 0;
 
   // Theme colors
   const theme = isApproved
@@ -558,7 +560,7 @@ export function ResultCard({ data }: ResultCardProps) {
         <TrailDialog
           open={trailOpen}
           onOpenChange={setTrailOpen}
-          trail={data.reasoningTrail!}
+          trail={normalizedTrail}
           customerName={data.customerName}
           status={data.status}
         />

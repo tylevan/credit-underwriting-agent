@@ -15,8 +15,14 @@ function cleanMarkdown(text: string): string {
     .trim();
 }
 
+function normalizeTrail(trail: { step: number }[] = []) {
+  return trail
+    .filter(step => typeof step.step === "number" && step.step >= 1 && step.step <= 5)
+    .sort((a, b) => a.step - b.step);
+}
+
 function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: string; amount: number; term: number }): AssessmentResult {
-  const trail = res.reasoning_trail || [];
+  const trail = normalizeTrail(res.reasoning_trail || []);
 
   const customerStep = trail.find(s => s.step === 1);
   const cicStep = trail.find(s => s.step === 2);
@@ -349,13 +355,13 @@ export default function Home() {
         if (cardData) {
           // Assessment result detected → show short summary + card
           // Attach reasoning trail from response (same as LoanForm)
-          const trail = response.reasoning_trail || [];
+          const trail = normalizeTrail(response.reasoning_trail || []);
           if (trail.length) {
             cardData.reasoningTrail = trail;
 
-            // Fallback: nếu parse report không ra hạn mức, lấy từ reasoning trail step 5/6
+            // Fallback: nếu parse report không ra hạn mức, lấy từ reasoning trail step 5
             if (cardData.limit == null) {
-              const loanStep = trail.find(s => s.step === 5 || s.step === 6);
+              const loanStep = trail.find(s => s.step === 5);
               const limitMatch = loanStep?.result?.match(/([\d,]+)\s*VND/);
               if (limitMatch) {
                 cardData.limit = parseInt(limitMatch[1].replace(/,/g, ""));

@@ -34,7 +34,6 @@ function getStepMeta(step: ReasoningStep) {
         3: <Calculator className="w-5 h-5" />,
         4: <BarChart3 className="w-5 h-5" />,
         5: <Landmark className="w-5 h-5" />,
-        6: <Landmark className="w-5 h-5" />,
     };
 
     const decisionMeta: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string; label: string }> = {
@@ -81,6 +80,12 @@ function getStepMeta(step: ReasoningStep) {
     return { stepIcon, ...meta };
 }
 
+function sanitizeTrail(trail: ReasoningStep[] = []): ReasoningStep[] {
+    return trail
+        .filter(step => typeof step.step === "number" && step.step >= 1 && step.step <= 5)
+        .sort((a, b) => a.step - b.step);
+}
+
 /* ── Trail data interface ── */
 export interface TrailData {
     customerName: string;
@@ -125,7 +130,7 @@ export default function ReasoningTrailPage() {
                             decision: d.decision,
                             threadId: d.assessment_id,
                             timestamp: d.created_at,
-                            trail: d.reasoning_trail || [],
+                            trail: sanitizeTrail(d.reasoning_trail || []),
                         });
                     } else {
                         setError("Không tìm thấy hồ sơ.");
@@ -135,7 +140,8 @@ export default function ReasoningTrailPage() {
                 .finally(() => setLoading(false));
         } else {
             // Mode 2: Fallback to localStorage (from home page)
-            setData(getTrailFromLocalStorage());
+            const local = getTrailFromLocalStorage();
+            setData(local ? { ...local, trail: sanitizeTrail(local.trail || []) } : null);
         }
     }, [assessmentId]);
 
