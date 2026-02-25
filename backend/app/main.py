@@ -417,9 +417,21 @@ async def chat(request: ChatRequest):
                     source_text, re.IGNORECASE,
                 )
                 if amount_match:
-                    raw = amount_match.group(1).replace(',', '').replace('.', '')
+                    raw = amount_match.group(1).strip()
                     unit = amount_match.group(2).lower()
-                    parsed = float(raw)
+
+                    # Number normalization:
+                    # - default: remove commas only
+                    # - if both dot and comma exist, remove both thousand separators
+                    # - if only dot exists, keep dot so decimal like "1.5" parses correctly
+                    if ',' in raw and '.' in raw:
+                        normalized_raw = raw.replace('.', '').replace(',', '')
+                    elif ',' in raw:
+                        normalized_raw = raw.replace(',', '')
+                    else:
+                        normalized_raw = raw
+
+                    parsed = float(normalized_raw)
                     if unit in ('triệu', 'tr'):
                         parsed *= 1_000_000
                     elif unit == 'tỷ':
