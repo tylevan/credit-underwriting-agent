@@ -29,6 +29,7 @@ from .middleware.rate_limiter import RateLimitMiddleware
 from .utils.helpers import (
     build_policy_quick_reply,
     clean_agent_content,
+    is_assessment_request,
     is_general_policy_question,
     normalize_chat_message,
 )
