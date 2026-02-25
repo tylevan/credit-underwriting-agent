@@ -86,18 +86,12 @@ function parseAssessmentResponse(res: AssessmentResponse, requestData: { id: str
         : "Đã hoàn tất thẩm định.";
 
   // ── Extract recommendation from LLM report ──
-  // Try ĐỀ XUẤT first, then LÝ DO/Diễn giải section
+  // Only read dedicated ĐỀ XUẤT section to avoid duplicating Diễn giải chi tiết.
   let recommendation: string | undefined;
   if (res.report) {
     const recMatch = res.report.match(/##\s*(?:ĐỀ XUẤT|Đề xuất|Gợi ý)[^\n]*\n([\s\S]*?)(?=##|$)/i);
     if (recMatch) {
       recommendation = cleanMarkdown(recMatch[1].replace(/^-\s*/gm, '• '));
-    }
-    if (!recommendation) {
-      const lyDoMatch = res.report.match(/##\s*(?:LÝ DO|Diễn giải[^\n]*)\n([\s\S]*?)(?=##|$)/i);
-      if (lyDoMatch) {
-        recommendation = cleanMarkdown(lyDoMatch[1]);
-      }
     }
   }
   if (res.needs_human_review && !recommendation) {
