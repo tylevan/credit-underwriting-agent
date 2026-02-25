@@ -445,7 +445,9 @@ async def chat(request: ChatRequest):
             except Exception as db_err:
                 logger.warning(f"Failed to save chat assessment to DB: {db_err}")
 
-            # Reset state to prevent overwrite on subsequent assessments in same thread
+        # Reset state whenever a final decision was produced,
+        # even if current_turn_trail is empty, to avoid stale decision reuse.
+        if final_decision:
             try:
                 credit_agent.update_state(config, {
                     "final_decision": None,
