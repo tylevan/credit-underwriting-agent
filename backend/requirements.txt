@@ -2,9 +2,9 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-dotenv==1.0.1
 pandas==2.2.3
-pydantic==2.10.3
-langchain-core==0.3.28
-langchain-google-genai==2.0.8
-langgraph==0.2.60
+pydantic==2.13.5
+langchain-core==1.6.3
+langchain-google-genai==4.4.0
+langgraph==1.2.11
 aiosqlite==0.22.1
 asyncpg==0.30.0

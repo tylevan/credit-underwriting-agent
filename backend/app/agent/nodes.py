@@ -11,7 +11,7 @@ Nodes:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -24,13 +24,43 @@ from ..config.policy_constants import CreditPolicy
 
 logger = logging.getLogger(__name__)
 
+# ChatGoogleGenerativeAI stores Gemini function-call thought signatures here.
+# The value must remain on the AIMessage so the adapter can replay it on the
+# next LLM turn after the tool result.
+GEMINI_TOOL_SIGNATURES_KEY = "__gemini_function_call_thought_signatures__"
+
+
+def _missing_tool_call_signatures(message: AIMessage) -> list[str]:
+    """Return tool-call IDs that do not have a Gemini thought signature."""
+    if not message.tool_calls:
+        return []
+
+    signatures = message.additional_kwargs.get(GEMINI_TOOL_SIGNATURES_KEY, {})
+    if not isinstance(signatures, dict):
+        signatures = {}
+
+    return [
+        tool_call_id
+        for tool_call in message.tool_calls
+        if (tool_call_id := tool_call.get("id")) and not signatures.get(tool_call_id)
+    ]
+
 # ── LLM Instance ──
-llm = ChatGoogleGenerativeAI(
-    model=settings.LLM_MODEL,
-    google_api_key=settings.GOOGLE_API_KEY,
-    temperature=settings.LLM_TEMPERATURE,
-)
-llm_with_tools = llm.bind_tools(ALL_TOOLS)
+# Initialize lazily so application startup/health checks do not create a
+# provider client before deployment secrets have been injected.
+_llm_with_tools = None
+
+
+def get_llm_with_tools():
+    global _llm_with_tools
+    if _llm_with_tools is None:
+        llm = ChatGoogleGenerativeAI(
+            model=settings.LLM_MODEL,
+            google_api_key=settings.GOOGLE_API_KEY,
+            temperature=settings.LLM_TEMPERATURE,
+        )
+        _llm_with_tools = llm.bind_tools(ALL_TOOLS)
+    return _llm_with_tools
 
 
 # ════════════════════════════════════════════
@@ -51,14 +81,25 @@ def call_model(state: AgentState) -> dict:
     input_messages = [system_msg] + list(messages)
 
     # Gọi LLM
-    response = llm_with_tools.invoke(input_messages)
+    response = get_llm_with_tools().invoke(input_messages)
+
+    # Gemini 3 requires the opaque signature from each model-generated
+    # functionCall to be replayed with the following tool result.  Version
+    # 4.x of langchain-google-genai preserves it in additional_kwargs; keep
+    # the original AIMessage intact and make a missing signature observable.
+    missing_signatures = _missing_tool_call_signatures(response)
+    if missing_signatures and settings.LLM_MODEL.lower().startswith("gemini-3"):
+        logger.error(
+            "gemini_tool_call_missing_thought_signature",
+            extra={"tool_call_ids": missing_signatures, "model": settings.LLM_MODEL},
+        )
 
     logger.info(
         "llm_called",
         extra={
             "has_tool_calls": bool(response.tool_calls),
             "tool_count": len(response.tool_calls) if response.tool_calls else 0,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     )
 
